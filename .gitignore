@@ -1,0 +1,11 @@
+# vim swap files
+.gitignore.swp
+
+# idea files
+.idea/
+
+# python setuptools files
+build/
+dist/
+midi2plot.egg-info/
+
