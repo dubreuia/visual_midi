@@ -4,17 +4,14 @@ Converts a [pretty midi](https://craffel.github.io/pretty-midi/) sequence to a [
 
 ## Installation
 
-### Locally
-
 ```bash
-# Install in specific env (using conda)
-conda activate env
-
-# Installs the python library (doesn't work with classic install)
-python setup.py install_lib
+# TODO not published to pythonhosted yet
+pip install midi2plot
 ```
 
-### Usage
+## Usage
+
+### Python
 
 ```python
 from midi2plot import Plotter
@@ -27,3 +24,29 @@ pretty_midi.instruments[0].append(pm.Note(100, 36, 0, 1))
 plotter = Plotter()
 plotter.show(pretty_midi, "out.html")
 ```
+
+### Command line
+
+```bash
+TODO
+```
+
+## Contributing
+
+### Development
+
+```bash
+# Install in specific env (using conda)
+conda activate env
+
+# Installs the python library (doesn't work with classic install)
+python setup.py install_lib
+```
+
+### Guidelines
+
+Use this [code style](config/visual-midi-code-style-intellij.xml).
+
+## [TODO](TODO.md)
+
+## [License](LICENSE)

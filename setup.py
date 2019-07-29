@@ -1,4 +1,5 @@
 import os
+import unittest
 
 from setuptools import setup
 
@@ -9,6 +10,12 @@ from setuptools import setup
 # string in below ...
 def read(fname):
   return open(os.path.join(os.path.dirname(__file__), fname)).read()
+
+
+def tests():
+  test_loader = unittest.TestLoader()
+  test_suite = test_loader.discover('tests', pattern='test_*.py')
+  return test_suite
 
 
 setup(
@@ -22,6 +29,7 @@ setup(
   url="http://packages.python.org/midi2plot",
   packages=['midi2plot', 'tests'],
   long_description=read('README.md'),
+  test_suite='setup.tests',
   classifiers=[
     "Development Status :: 3 - Alpha",
     "Topic :: Utilities",

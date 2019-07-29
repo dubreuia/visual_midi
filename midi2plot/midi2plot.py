@@ -60,7 +60,7 @@ class Plotter:
                           + str(pretty_midi.get_tempo_changes()))
         qpm = tempo_change.min()
     if not qpm:
-      raise Exception("Cannot find suitable qpm in "
+      raise Exception("Unknown qpm in: "
                       + str(pretty_midi.get_tempo_changes()))
     return qpm
 
@@ -68,7 +68,7 @@ class Plotter:
     """Returns the first signature,
     raises exception if more than one signature"""
     if len(pretty_midi.time_signature_changes) != 1:
-      raise Exception("Cannot find suitable time signature in "
+      raise Exception("Unknown time signature: "
                       + str(pretty_midi.time_signature_changes))
     return pretty_midi.time_signature_changes[0]
 
@@ -78,7 +78,7 @@ class Plotter:
     elif self._time_scaling is TimeScaling.BAR:
       return 1
     else:
-      raise Exception("Unknown time scaling " + str(self._time_scaling))
+      raise Exception("Unknown time scaling: " + str(self._time_scaling))
 
   def _scale_time(self, qpm, time):
     if self._time_scaling is TimeScaling.SEC:
@@ -86,7 +86,7 @@ class Plotter:
     elif self._time_scaling is TimeScaling.BAR:
       return (time / (qpm / 60)) + 1
     else:
-      raise Exception("Unknown time scaling " + str(self._time_scaling))
+      raise Exception("Unknown time scaling: " + str(self._time_scaling))
 
   @staticmethod
   def _get_box_horizontal(pitch, fill_alpha, line_alpha):
@@ -203,7 +203,10 @@ class Plotter:
 
     for bar in range(start, end + 1):
       if self._time_scaling is TimeScaling.BAR:
-        beat_per_bar = self._get_time_signature(pretty_midi).denominator
+        if not len(pretty_midi.time_signature_changes):
+          beat_per_bar = 4
+        else:
+          beat_per_bar = self._get_time_signature(pretty_midi).denominator
       elif self._time_scaling is TimeScaling.SEC:
         beat_per_bar = 1
       else:
