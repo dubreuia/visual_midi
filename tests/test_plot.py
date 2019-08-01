@@ -2,7 +2,7 @@ import unittest
 
 import pretty_midi as pm
 
-from midi2plot.midi2plot import Plotter
+from visual_midi.visual_midi import Plotter
 
 
 class TestDefaultPlot(unittest.TestCase):

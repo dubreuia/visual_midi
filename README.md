@@ -1,4 +1,4 @@
-# midi2plot
+# Visual MIDI
 
 Converts a [pretty midi](https://craffel.github.io/pretty-midi/) sequence to a [bokeh plot](https://bokeh.pydata.org/en/latest/).
 
@@ -6,7 +6,7 @@ Converts a [pretty midi](https://craffel.github.io/pretty-midi/) sequence to a [
 
 ```bash
 # TODO not published to pythonhosted yet
-pip install midi2plot
+pip install visual_midi
 ```
 
 ## Usage
@@ -14,7 +14,7 @@ pip install midi2plot
 ### Python
 
 ```python
-from midi2plot import Plotter
+from visual_midi import Plotter
 import pretty_midi as pm
 
 pretty_midi = pm.PrettyMIDI()

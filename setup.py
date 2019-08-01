@@ -19,15 +19,15 @@ def tests():
 
 
 setup(
-  name="midi2plot",
+  name="Visual MIDI",
   version="0.0.1",
   author="Alexandre DuBreuil",
   author_email="code@alexandredubreuil.com",
   description=("Converts a pretty midi sequence to a boket plot"),
   license="MIT License",
   keywords="midi, bokeh",
-  url="http://packages.python.org/midi2plot",
-  packages=['midi2plot', 'tests'],
+  url="http://packages.python.org/visual_midi",
+  packages=['visual_midi', 'tests'],
   long_description=read('README.md'),
   test_suite='setup.tests',
   classifiers=[
