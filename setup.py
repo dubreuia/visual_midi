@@ -5,8 +5,8 @@ from setuptools import setup
 
 
 # Utility function to read the README file.
-# Used for the long_description.  It's nice, because now 1) we have a top level
-# README file and 2) it's easier to type in the README file than to put a raw
+# Used for the long_description.  It"s nice, because now 1) we have a top level
+# README file and 2) it"s easier to type in the README file than to put a raw
 # string in below ...
 def read(fname):
   return open(os.path.join(os.path.dirname(__file__), fname)).read()
@@ -14,7 +14,7 @@ def read(fname):
 
 def tests():
   test_loader = unittest.TestLoader()
-  test_suite = test_loader.discover('tests', pattern='test_*.py')
+  test_suite = test_loader.discover("tests", pattern="test_*.py")
   return test_suite
 
 
@@ -27,9 +27,14 @@ setup(
   license="MIT License",
   keywords="midi, bokeh",
   url="http://packages.python.org/visual_midi",
-  packages=['visual_midi', 'tests'],
-  long_description=read('README.md'),
-  test_suite='setup.tests',
+  packages=["visual_midi", "tests"],
+  long_description=read("README.md"),
+  test_suite="setup.tests",
+  entry_points={
+    "console_scripts": [
+      "visual_midi = visual_midi.visual_midi:console_entry_point"
+    ],
+  },
   classifiers=[
     "Development Status :: 3 - Alpha",
     "Topic :: Utilities",

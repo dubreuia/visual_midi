@@ -6,7 +6,7 @@ import bokeh
 import bokeh.plotting
 from bokeh.colors.groups import purple as colors
 from bokeh.embed import file_html
-from bokeh.io import output_file, show
+from bokeh.io import output_file, show, save
 from bokeh.layouts import column
 from bokeh.models import BoxAnnotation, ColumnDataSource, Title
 from bokeh.models import Range1d, Label
@@ -23,6 +23,8 @@ def _frange(x, y, jump):
 
 
 class TimeScaling(Enum):
+  """TODO doc"""
+
   SEC = 1
   BAR = 2
 
@@ -31,6 +33,12 @@ class TimeScaling(Enum):
 
 
 class Plotter:
+  """A plotter class with plot size, time scaling and live reload
+  configuration.
+
+  TODO args
+  """
+
   _MAX_PITCH = 127
   _MIN_PITCH = 0
 
@@ -60,12 +68,19 @@ class Plotter:
   def __init__(self,
                plot_pitch_min=None,
                plot_pitch_max=None,
-               plot_max_length_time=8,
+               # TODO this is in bar
+               plot_max_length_time=32,
+               # TODO this will break the offsets
+               plot_width=1200,
+               plot_height=300,
                time_scaling=TimeScaling.SEC,
                live_reload=False):
+    """TODO doc"""
     self._plot_pitch_min = plot_pitch_min
     self._plot_pitch_max = plot_pitch_max
     self._plot_max_length_time = plot_max_length_time
+    self._plot_width = plot_width
+    self._plot_height = plot_height
     self._time_scaling = time_scaling
     self._live_reload = live_reload
     self._show_counter = 0
@@ -88,6 +103,8 @@ class Plotter:
     return qpm
 
   def plot(self, pretty_midi):
+    """Plots the pretty midi object as a plot object."""
+
     # Calculates the QPM from the MIDI file, might raise exception if confused
     qpm = self._get_qpm(pretty_midi)
 
@@ -254,8 +271,8 @@ class Plotter:
 
     # Configure the plot size and range
     plot.title = Title(text="Visual MIDI (qpm: " + str(qpm) + ")")
-    plot.plot_width = 1200
-    plot.plot_height = 300
+    plot.plot_width = self._plot_width
+    plot.plot_height = self._plot_height
     plot.x_range = Range1d(plot_start_time, plot_end_time)
     plot.y_range = Range1d(pitch_min, pitch_max + 1)
 
@@ -269,7 +286,18 @@ class Plotter:
 
     return layout
 
+  def save(self, pretty_midi, plot_file):
+    """Saves the pretty midi object as a plot file (html)
+    in the provided file."""
+    plot = self.plot(pretty_midi)
+    output_file(plot_file)
+    save(plot)
+    return plot
+
   def show(self, pretty_midi, plot_file):
+    """Shows the pretty midi object as a plot file (html) in the browser. If
+    the live reload option is activated, the opened page will periodically
+    refresh."""
     plot = self.plot(pretty_midi)
     if self._live_reload:
       html = file_html(plot, CDN)
@@ -292,11 +320,15 @@ class Plotter:
     return plot
 
 
-if __name__ == "__main__":
+def console_entry_point():
+  plotter = Plotter()
   for midi_file in sys.argv[1:]:
     plot_file = midi_file.replace(".mid", ".html")
     print("Plotting midi file " + midi_file + " to " + plot_file)
     pretty_midi = PrettyMIDI(midi_file)
-    plotter = Plotter(time_scaling=TimeScaling.SEC)
-    plotter.show(pretty_midi, plot_file)
+    plotter.save(pretty_midi, plot_file)
   sys.exit(0)
+
+
+if __name__ == '__main__':
+  console_entry_point()
