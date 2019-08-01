@@ -9,3 +9,5 @@ build/
 dist/
 midi2plot.egg-info/
 
+# output plot files
+output

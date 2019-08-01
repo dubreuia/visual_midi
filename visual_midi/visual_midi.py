@@ -4,7 +4,6 @@ from enum import Enum
 
 import bokeh
 import bokeh.plotting
-import math
 from bokeh.colors.groups import purple as colors
 from bokeh.embed import file_html
 from bokeh.io import output_file, show
@@ -37,92 +36,32 @@ class TimeScaling(Enum):
 
 
 class Plotter:
+  MAX_PITCH = 127
+  MIN_PITCH = 0
 
   def __init__(self,
+               qpm=120,
+               beat_per_bar=4,
+               plot_bar_min=1,
+               plot_bar_max=8,
+               plot_pitch_min=None,
+               plot_pitch_max=None,
                time_scaling=TimeScaling.SEC,
-               max_bar=None,
                live_reload=False):
+    self._qpm = qpm
+    self._beat_per_bar = beat_per_bar
+    self._plot_bar_min = plot_bar_min
+    self._plot_bar_max = plot_bar_max
+    self._plot_pitch_min = plot_pitch_min
+    self._plot_pitch_max = plot_pitch_max
     self._time_scaling = time_scaling
-    self._max_bar = max_bar
     self._live_reload = live_reload
     self._show_counter = 0
 
-  def _get_qpm(self, pretty_midi):
-    """Returns the first tempo change that is not zero,
-    raises exception if not found"""
-    qpm = None
-    for tempo_change in pretty_midi.get_tempo_changes():
-      if tempo_change.min() > 0 \
-          and tempo_change.max() > 0 \
-          and tempo_change.min() == tempo_change.max():
-        if qpm:
-          raise Exception("Multiple tempo changes are not supported "
-                          + str(pretty_midi.get_tempo_changes()))
-        qpm = tempo_change.min()
-    if not qpm:
-      raise Exception("Unknown qpm in: "
-                      + str(pretty_midi.get_tempo_changes()))
-    return qpm
-
-  def _get_time_signature(self, pretty_midi):
-    """Returns the first signature,
-    raises exception if more than one signature"""
-    if len(pretty_midi.time_signature_changes) != 1:
-      raise Exception("Unknown time signature: "
-                      + str(pretty_midi.time_signature_changes))
-    return pretty_midi.time_signature_changes[0]
-
-  def _get_time_start(self):
-    if self._time_scaling is TimeScaling.SEC:
-      return 0
-    elif self._time_scaling is TimeScaling.BAR:
-      return 1
-    else:
-      raise Exception("Unknown time scaling: " + str(self._time_scaling))
-
-  def _scale_time(self, qpm, time):
-    if self._time_scaling is TimeScaling.SEC:
-      return time
-    elif self._time_scaling is TimeScaling.BAR:
-      return (time / (qpm / 60)) + 1
-    else:
-      raise Exception("Unknown time scaling: " + str(self._time_scaling))
-
-  @staticmethod
-  def _get_box_horizontal(pitch, fill_alpha, line_alpha):
-    box = BoxAnnotation(bottom=pitch, top=pitch + 1, fill_color="gray",
-                        fill_alpha=fill_alpha, line_alpha=line_alpha)
-    box.level = "underlay"
-    return box
-
-  @staticmethod
-  def _get_box_vertical(bar, fill_alpha, line_alpha):
-    box = BoxAnnotation(left=bar, right=bar + 1, fill_color="gray",
-                        fill_alpha=fill_alpha, line_alpha=line_alpha)
-    box.level = "underlay"
-    return box
-
-  @staticmethod
-  def _get_box_beat_vertical(bar, beat, beat_per_bar,
-                             fill_alpha, line_alpha):
-    box = BoxAnnotation(left=bar + beat / beat_per_bar,
-                        right=bar + beat / beat_per_bar + beat / beat_per_bar,
-                        fill_color=None,
-                        fill_alpha=fill_alpha,
-                        line_alpha=line_alpha)
-    box.level = "underlay"
-    return box
-
-  @staticmethod
-  def _get_label(note):
-    label = Label(x=-20, y=note + 0.2, x_units="screen", text=str(note),
-                  render_mode="css", text_font_size="8pt")
-    return label
-
   def _is_note_filtered(self, pretty_midi, note):
-    if not self._max_bar:
+    if not self._plot_bar_max:
       return True
-    min_time = int(pretty_midi.get_end_time() - self._max_bar + 1)
+    min_time = int(pretty_midi.get_end_time() - self._plot_bar_max + 1)
     if note.start < min_time:
       return False
     return True
@@ -147,33 +86,35 @@ class Plotter:
       color=[],
     )
 
-    pitch_min = 127
-    pitch_max = 0
+    pitch_min = None
+    pitch_max = None
     first_note = None
     last_note = None
     for instrument in pretty_midi.instruments:
       for note in instrument.notes:
         if self._is_note_filtered(pretty_midi, note):
-          pitch_max = max(pitch_max, note.pitch)
-          pitch_min = min(pitch_min, note.pitch)
-          color_index = (note.pitch - 37) % len(colors)
-          start = self._scale_time(self._get_qpm(pretty_midi),
-                                   note.start)
-          end = self._scale_time(self._get_qpm(pretty_midi),
-                                 note.start + (note.end - note.start))
+          pitch_min = min(pitch_min or self.MAX_PITCH, note.pitch)
+          pitch_max = max(pitch_max or self.MIN_PITCH, note.pitch)
+          color_index = (note.pitch - 36) % len(colors)
+          start_beat = note.start
+          end_beat = note.start + (note.end - note.start)
           data["top"].append(note.pitch)
           data["bottom"].append(note.pitch + 1)
-          data["left"].append(start)
-          data["right"].append(end)
-          data["duration"].append(end - start)
+          data["left"].append(start_beat)
+          data["right"].append(end_beat)
+          data["duration"].append(end_beat - start_beat)
           data["velocity"].append(note.velocity)
-          data["color"].append(colors[color_index].lighten(0.25))
+          data["color"].append(colors[color_index].lighten(0))
           if not first_note:
             first_note = note
           last_note = note
 
-    if not first_note or not last_note:
+    if not first_note or not last_note or not pitch_min or not pitch_max:
+      # TODO show empty plot
       raise Exception("No note in the file")
+
+    pitch_min = min(self._plot_pitch_min or self.MAX_PITCH, pitch_min)
+    pitch_max = max(self._plot_pitch_max or self.MIN_PITCH, pitch_max)
 
     source = ColumnDataSource(data=data)
     plot.quad(left="left",
@@ -185,56 +126,59 @@ class Plotter:
               color="color",
               source=source)
 
+    # Vertical axis
     for pitch in range(pitch_min, pitch_max + 1):
       if pitch % 2 == 0:
         fill_alpha = BOX_HORIZONTAL_FILL_ALPHA_EVEN
       else:
         fill_alpha = BOX_HORIZONTAL_FILL_ALPHA_ODD
-      box = self._get_box_horizontal(pitch, fill_alpha,
-                                     BOX_HORIZONTAL_LINE_ALPHA)
+      box = BoxAnnotation(bottom=pitch,
+                          top=pitch + 1,
+                          fill_color="gray",
+                          fill_alpha=fill_alpha,
+                          line_alpha=BOX_HORIZONTAL_LINE_ALPHA)
+      box.level = "underlay"
       plot.add_layout(box)
-      label = self._get_label(pitch)
+      label = Label(x=-20,
+                    # TODO calculate with plot height / number of sep
+                    y=pitch + (300 / 350 / (pitch_max + 1 - pitch_min)),
+                    x_units="screen",
+                    text=str(pitch),
+                    render_mode="css",
+                    text_font_size="8pt")
       plot.add_layout(label)
 
-    start = math.floor(self._scale_time(self._get_qpm(pretty_midi),
-                                        first_note.start))
-    end = math.floor(self._scale_time(self._get_qpm(pretty_midi),
-                                      last_note.start))
+    qpm = 120
+    quarter_per_seconds = qpm / 60
+    seconds_per_quarter = 1 / quarter_per_seconds
+    seconds_per_bar = seconds_per_quarter * 4
 
-    for bar in range(start, end + 1):
-      if self._time_scaling is TimeScaling.BAR:
-        if not len(pretty_midi.time_signature_changes):
-          beat_per_bar = 4
-        else:
-          beat_per_bar = self._get_time_signature(pretty_midi).denominator
-      elif self._time_scaling is TimeScaling.SEC:
-        beat_per_bar = 1
+    plot_start = int(first_note.start / seconds_per_bar) * seconds_per_bar
+    plot_end = int(last_note.end / seconds_per_bar) * seconds_per_bar \
+               + seconds_per_bar
+
+    for bar in frange(plot_start, plot_end, seconds_per_bar):
+      bar_count = bar / seconds_per_bar
+      if bar_count % 2 == 0:
+        fill_alpha = BOX_VERTICAL_FILL_ALPHA_EVEN
       else:
-        raise Exception("Unknown time scaling " + str(self._time_scaling))
-      # change alpha each beat_per_bar
-      # (if time signature is 3/4 we'll change each 4 bars)
-      fill_alpha = BOX_VERTICAL_FILL_ALPHA_EVEN \
-        if math.ceil(bar / beat_per_bar) % 2 == 0 \
-        else BOX_VERTICAL_FILL_ALPHA_ODD
-      box = self._get_box_vertical(bar, fill_alpha, BOX_VERTICAL_LINE_ALPHA)
+        fill_alpha = BOX_VERTICAL_FILL_ALPHA_ODD
+      box = BoxAnnotation(left=bar,
+                          right=bar + seconds_per_bar,
+                          fill_color="gray",
+                          fill_alpha=fill_alpha,
+                          line_alpha=BOX_VERTICAL_FILL_ALPHA_EVEN)
+      box.level = "underlay"
       plot.add_layout(box)
-      for beat in range(0, beat_per_bar):
-        box = self._get_box_beat_vertical(
-          bar,
-          beat,
-          beat_per_bar,
-          BOX_BEAT_VERTICAL_FILL_ALPHA,
-          BOX_BEAT_VERTICAL_LINE_ALPHA)
-        plot.add_layout(box)
-        if beat != 0 and self._time_scaling is TimeScaling.BAR:
-          label = Label(
-            x=bar + beat / beat_per_bar - 0.02,
-            y=-24,
-            y_units="screen",
-            text=str(bar) + "." + str(beat),
-            render_mode="css",
-            text_font_size="7pt")
-          plot.add_layout(label)
+
+    for beat in frange(plot_start, plot_end, seconds_per_quarter):
+      box = BoxAnnotation(left=beat,
+                          right=beat + seconds_per_quarter,
+                          fill_color=None,
+                          fill_alpha=BOX_BEAT_VERTICAL_FILL_ALPHA,
+                          line_alpha=BOX_BEAT_VERTICAL_LINE_ALPHA)
+      box.level = "underlay"
+      plot.add_layout(box)
 
     plot.xgrid.grid_line_color = "black"
     plot.ygrid.grid_line_color = None
@@ -243,7 +187,7 @@ class Plotter:
     plot.xgrid.grid_line_width = 1
     plot.xgrid.grid_line_color = "black"
 
-    plot.xaxis.bounds = (start, end + 1)
+    plot.xaxis.bounds = (plot_start, plot_end)
     plot.yaxis.bounds = (pitch_min, pitch_max + 1)
 
     plot.yaxis.major_label_text_alpha = 0
@@ -258,7 +202,7 @@ class Plotter:
     plot.xaxis.axis_label = "time (" + str(self._time_scaling) + ")"
     plot.yaxis.axis_label = "pitch (MIDI)"
 
-    plot.x_range = Range1d(start, end + 1)
+    plot.x_range = Range1d(plot_start, plot_end)
     plot.y_range = Range1d(pitch_min, pitch_max + 1)
 
     if self._live_reload:
@@ -292,6 +236,12 @@ class Plotter:
       show(plot)
     self._show_counter += 1
     return plot
+
+
+def frange(x, y, jump):
+  while x < y:
+    yield x
+    x += jump
 
 
 if __name__ == "__main__":
