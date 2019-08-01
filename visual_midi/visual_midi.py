@@ -16,6 +16,12 @@ from bokeh.resources import CDN
 from pretty_midi import PrettyMIDI
 
 
+def _frange(x, y, jump):
+  while x < y:
+    yield x
+    x += jump
+
+
 class TimeScaling(Enum):
   SEC = 1
   BAR = 2
@@ -52,26 +58,26 @@ class Plotter:
   }
 
   def __init__(self,
-               plot_max_length_time=8,
                plot_pitch_min=None,
                plot_pitch_max=None,
+               plot_max_length_time=8,
                time_scaling=TimeScaling.SEC,
                live_reload=False):
-    self._plot_max_length_time = plot_max_length_time
     self._plot_pitch_min = plot_pitch_min
     self._plot_pitch_max = plot_pitch_max
+    self._plot_max_length_time = plot_max_length_time
     self._time_scaling = time_scaling
     self._live_reload = live_reload
     self._show_counter = 0
 
   def _get_qpm(self, pretty_midi):
-    """Returns the first tempo change that is not zero,
-    raises exception if not found"""
+    """Returns the first tempo change that is not zero, raises exception
+    if not found or multiple tempo present."""
     qpm = None
     for tempo_change in pretty_midi.get_tempo_changes():
       if tempo_change.min() > 0 \
-          and tempo_change.max() > 0 \
-          and tempo_change.min() == tempo_change.max():
+        and tempo_change.max() > 0 \
+        and tempo_change.min() == tempo_change.max():
         if qpm:
           raise Exception("Multiple tempo changes are not supported "
                           + str(pretty_midi.get_tempo_changes()))
@@ -81,19 +87,11 @@ class Plotter:
                       + str(pretty_midi.get_tempo_changes()))
     return qpm
 
-  def _is_note_filtered(self, pretty_midi, note):
-    """Returns True if the note is filtered, meaning it is inside the boundaries
-    of the graph"""
-    if not self._plot_max_length_time:
-      return True
-    min_time = int(pretty_midi.get_end_time() - self._plot_max_length_time + 1)
-    if note.start < min_time:
-      return False
-    return True
-
-  def plot_midi(self, pretty_midi):
+  def plot(self, pretty_midi):
+    # Calculates the QPM from the MIDI file, might raise exception if confused
     qpm = self._get_qpm(pretty_midi)
 
+    # Initialize the tools, those are present on the right hand side
     plot = bokeh.plotting.figure(tools="reset,hover,previewsave,wheel_zoom,pan")
 
     # Setup the hover and the data dict for bokeh,
@@ -122,24 +120,21 @@ class Plotter:
     last_note_end = None
     for instrument in pretty_midi.instruments:
       for note in instrument.notes:
-        # The first notes might be filtered if the scope of the plot is limited
-        # and starts too soon (truncate from the left)
-        if self._is_note_filtered(pretty_midi, note):
-          pitch_min = min(pitch_min or self._MAX_PITCH, note.pitch)
-          pitch_max = max(pitch_max or self._MIN_PITCH, note.pitch)
-          color_index = (note.pitch - 36) % len(colors)
-          start_beat = note.start
-          end_beat = note.start + (note.end - note.start)
-          data["top"].append(note.pitch)
-          data["bottom"].append(note.pitch + 1)
-          data["left"].append(start_beat)
-          data["right"].append(end_beat)
-          data["duration"].append(end_beat - start_beat)
-          data["velocity"].append(note.velocity)
-          data["color"].append(colors[color_index].lighten(0))
-          if not first_note_start:
-            first_note_start = note.start
-          last_note_end = note.end
+        pitch_min = min(pitch_min or self._MAX_PITCH, note.pitch)
+        pitch_max = max(pitch_max or self._MIN_PITCH, note.pitch)
+        color_index = (note.pitch - 36) % len(colors)
+        start_beat = note.start
+        end_beat = note.start + (note.end - note.start)
+        data["top"].append(note.pitch)
+        data["bottom"].append(note.pitch + 1)
+        data["left"].append(start_beat)
+        data["right"].append(end_beat)
+        data["duration"].append(end_beat - start_beat)
+        data["velocity"].append(note.velocity)
+        data["color"].append(colors[color_index])
+        if not first_note_start:
+          first_note_start = note.start
+        last_note_end = note.end
 
     # Shows an empty plot even if there are no notes
     if not first_note_start \
@@ -199,16 +194,20 @@ class Plotter:
     seconds_per_quarter = 1 / quarter_per_seconds
     seconds_per_bar = seconds_per_quarter * 4
 
-    # Calculates the plot start and end time, the end time can truncate notes
-    # if a long note exceeds the maximum plot time
-    plot_start_time = int(first_note_start / seconds_per_bar) * seconds_per_bar
-    plot_end_time = min(plot_start_time + self._plot_max_length_time,
-                        int((last_note_end - 0.00001) / seconds_per_bar)
-                        * seconds_per_bar + seconds_per_bar)
+    # Calculates the plot start and end time, the start time can start after
+    # notes or truncate notes if the plot is too long (we left truncate the
+    # plot with the bounds)
+    # The adjustment 0.000001 is to make sure a note ending right on the last
+    # bar wouldn't force the show of the next bar
+    plot_end_time = int((last_note_end - 0.00001) / seconds_per_bar) \
+                    * seconds_per_bar + seconds_per_bar
+    plot_start_time = max(plot_end_time - self._plot_max_length_time,
+                          int(first_note_start / seconds_per_bar) *
+                          seconds_per_bar)
 
-    # Draws the vertical bar grid,
-    # with a different background color for each bar
-    for bar in frange(plot_start_time, plot_end_time, seconds_per_bar):
+    # Draws the vertical bar grid, with a different background color
+    # for each bar
+    for bar in _frange(plot_start_time, plot_end_time, seconds_per_bar):
       bar_count = bar / seconds_per_bar
       fill_alpha = (self._Y_BAR_FILL_ALPHA_EVEN
                     if bar_count % 2 == 0
@@ -222,7 +221,7 @@ class Plotter:
       plot.add_layout(box)
 
     # Draws the vertical beat grid, those are only grid lines
-    for beat in frange(plot_start_time, plot_end_time, seconds_per_quarter):
+    for beat in _frange(plot_start_time, plot_end_time, seconds_per_quarter):
       box = BoxAnnotation(left=beat,
                           right=beat + seconds_per_quarter,
                           fill_color=None,
@@ -271,7 +270,7 @@ class Plotter:
     return layout
 
   def show(self, pretty_midi, plot_file):
-    plot = self.plot_midi(pretty_midi)
+    plot = self.plot(pretty_midi)
     if self._live_reload:
       html = file_html(plot, CDN)
       html = html.replace("</head>", """
@@ -291,12 +290,6 @@ class Plotter:
       show(plot)
     self._show_counter += 1
     return plot
-
-
-def frange(x, y, jump):
-  while x < y:
-    yield x
-    x += jump
 
 
 if __name__ == "__main__":
