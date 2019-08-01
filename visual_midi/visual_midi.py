@@ -1,9 +1,11 @@
+import argparse
 import os
 import sys
 
 import bokeh
 import bokeh.plotting
 from bokeh.colors.groups import purple as colors
+from bokeh.core.enums import FontStyle
 from bokeh.embed import file_html
 from bokeh.io import output_file, show, save
 from bokeh.layouts import column
@@ -31,6 +33,7 @@ class Plotter:
   _MAX_PITCH = 127
   _MIN_PITCH = 0
 
+  # TODO calculate
   _PITCH_OFFSET_DEFAULT = 0.2
   _PITCH_OFFSETS = {
     1: 0.45,
@@ -48,11 +51,16 @@ class Plotter:
                plot_pitch_min=None,
                plot_pitch_max=None,
                plot_max_length_time=16,
-               # TODO this will break the offsets
                plot_width=1200,
-               plot_height=300,
+               # TODO this will break the offsets
+               plot_height=400,
                show_bar=True,
                show_beat=True,
+               title_text_font_size="14px",
+               axis_label_text_font_size="12px",
+               label_text_font_size="10px",
+               label_text_font_style="normal",
+               toolbar_location="right",
                live_reload=False):
     """TODO doc"""
     self._qpm = qpm
@@ -63,6 +71,11 @@ class Plotter:
     self._plot_height = plot_height
     self._show_bar = show_bar
     self._show_beat = show_beat
+    self._title_text_font_size = title_text_font_size
+    self._axis_label_text_font_size = axis_label_text_font_size
+    self._label_text_font_size = label_text_font_size
+    self._label_text_font_style = getattr(FontStyle, label_text_font_style)
+    self._toolbar_location = toolbar_location
     self._live_reload = live_reload
     self._show_counter = 0
 
@@ -95,7 +108,9 @@ class Plotter:
     qpm = self._get_qpm(pretty_midi)
 
     # Initialize the tools, those are present on the right hand side
-    plot = bokeh.plotting.figure(tools="reset,hover,previewsave,wheel_zoom,pan")
+    plot = bokeh.plotting.figure(
+      tools="reset,hover,previewsave,wheel_zoom,pan",
+      toolbar_location=self._toolbar_location)
 
     # Setup the hover and the data dict for bokeh,
     # each property must match a property in the data dict
@@ -182,12 +197,14 @@ class Plotter:
       # Draws the label on the left which is the pitch (36, 37, etc.)
       pitch_range = pitch_max + 1 - pitch_min
       offset = self._PITCH_OFFSETS.get(pitch_range, self._PITCH_OFFSET_DEFAULT)
-      label = Label(x=-20,
+      # TODO that doesn't work
+      label = Label(x=-22 if self._label_text_font_size >= "15px" else -20,
                     y=pitch + offset,
                     x_units="screen",
                     text=str(pitch),
                     render_mode="css",
-                    text_font_size="8pt")
+                    text_font_size=self._label_text_font_size,
+                    text_font_style=self._label_text_font_style)
       plot.add_layout(label)
 
     # Calculates the number of seconds per bar, this is only useful to draw the
@@ -242,12 +259,16 @@ class Plotter:
     # Configure x axis
     plot.xaxis.bounds = (plot_start_time, plot_end_time)
     plot.xaxis.axis_label = "time (SEC)"
+    plot.xaxis.axis_label_text_font_size = self._axis_label_text_font_size
     plot.xaxis.ticker = bokeh.models.SingleIntervalTicker(interval=1)
     plot.xaxis.minor_tick_line_alpha = 0
+    plot.xaxis.major_label_text_font_size = self._label_text_font_size
+    plot.xaxis.major_label_text_font_style = self._label_text_font_style
 
     # Configure y axis
     plot.yaxis.bounds = (pitch_min, pitch_max + 1)
     plot.yaxis.axis_label = "pitch (MIDI)"
+    plot.yaxis.axis_label_text_font_size = self._axis_label_text_font_size
     plot.yaxis.major_label_text_alpha = 0
     plot.yaxis.major_tick_line_alpha = 0
     plot.yaxis.minor_tick_line_alpha = 0
@@ -259,7 +280,8 @@ class Plotter:
     plot.ygrid.grid_line_color = None
 
     # Configure the plot size and range
-    plot.title = Title(text="Visual MIDI (QPM: " + str(qpm) + ")")
+    plot.title = Title(text="Visual MIDI (QPM: " + str(qpm) + ")",
+                       text_font_size=self._title_text_font_size)
     plot.plot_width = self._plot_width
     plot.plot_height = self._plot_height
     plot.x_range = Range1d(plot_start_time, plot_end_time)
@@ -310,33 +332,38 @@ class Plotter:
 
 
 def console_entry_point():
-  # parser = argparse.ArgumentParser()
-  # parser.add_argument("--plot-pitch-min")
-  # parser.add_argument("--plot-pitch-max")
-  # parser.add_argument("--plot-max-length-time")
-  # parser.add_argument("--plot-width")
-  # parser.add_argument("--plot-height")
-  # parser.add_argument("--time-scaling")
-  # args = parser.parse_args()
-  #
-  # kwargs = {}
-  # if args["plot-pitch-min"]:
-  #   kwargs["plot-pitch-min"] = args["plot-pitch-min"]
-  # if args["plot-pitch-max"]:
-  #   kwargs["plot-pitch-max"] = args["plot-pitch-max"]
-  # if args["plot-max-length-time"]:
-  #   kwargs["plot-max-length-time"] = args["plot-max-length-time"]
-  # if args["plot-width"]:
-  #   kwargs["plot-width"] = args["plot-width"]
-  # if args["plot-height"]:
-  #   kwargs["plot-height"] = args["plot-height"]
-  # if args["time-scaling"]:
-  #   kwargs["time-scaling"] = args["time-scaling"]
-  #
-  # plotter = Plotter(**kwargs)
+  plot_configuration_keys = [
+    ("qpm", int),
+    ("plot_pitch_min", int),
+    ("plot_pitch_max", int),
+    ("plot_max_length_time", int),
+    ("plot_width", int),
+    ("plot_height", int),
+    ("show_bar", bool),
+    ("show_beat", bool),
+    # TODO use int
+    ("title_text_font_size", str),
+    # TODO use int
+    ("axis_label_text_font_size", str),
+    # TODO use int
+    ("label_text_font_size", str),
+    ("label_text_font_style", str),
+    ("toolbar_location", str),
+  ]
 
-  plotter = Plotter(show_bar=True, show_beat=True, plot_max_length_time=17)
-  for midi_file in sys.argv[1:]:
+  parser = argparse.ArgumentParser()
+  [parser.add_argument("--" + key[0], type=key[1])
+   for key in plot_configuration_keys]
+  parser.add_argument("files", nargs='+')
+  args = parser.parse_args()
+
+  kwargs = {key[0]: (None if getattr(args, key[0]) == "None"
+                     else getattr(args, key[0]))
+            for key in plot_configuration_keys
+            if getattr(args, key[0], None)}
+  plotter = Plotter(**kwargs)
+
+  for midi_file in args.files:
     plot_file = midi_file.replace(".mid", ".html")
     print("Plotting midi file " + midi_file + " to " + plot_file)
     pretty_midi = PrettyMIDI(midi_file)
