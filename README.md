@@ -58,10 +58,10 @@ plotter.show(pretty_midi, "output.html")
 ### Development
 
 ```bash
-# Install in specific env (using conda)
-conda activate env
+# Installs the library, dependencies, and command line scripts
+python setup.py install
 
-# Installs the python library (doesn't work with classic install)
+# Installs the python library (necessary for python imports)
 python setup.py install_lib
 ```
 
@@ -75,4 +75,4 @@ See [TODO](TODO.md).
 
 ## License
 
-[MIT License](LICENSE).
+See [MIT License](LICENSE).
