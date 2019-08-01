@@ -7,7 +7,7 @@
 # python setuptools files
 build/
 dist/
-midi2plot.egg-info/
+Visual_MIDI.egg-info/
 
 # output plot files
 output

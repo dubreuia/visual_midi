@@ -16,11 +16,7 @@ pip install visual_midi
 ```python
 from visual_midi import Plotter
 import pretty_midi as pm
-
 pretty_midi = pm.PrettyMIDI()
-pretty_midi.instruments.append(pm.Instrument(0))
-pretty_midi.instruments[0].append(pm.Note(100, 36, 0, 1))
-
 plotter = Plotter()
 plotter.show(pretty_midi, "out.html")
 ```
@@ -28,8 +24,34 @@ plotter.show(pretty_midi, "out.html")
 ### Command line
 
 ```bash
-TODO
+visual_midi "midi_file_01.mid" "midi_file_02.mid"
 ```
+
+## Examples
+
+```python
+from visual_midi import Plotter
+import pretty_midi as pm
+
+plotter = Plotter(plot_max_length_time=16)
+pretty_midi = pm.PrettyMIDI()
+pretty_midi.instruments.append(pm.Instrument(0))
+notes = [pm.Note(100, 36, 1.5, 1.7),
+         pm.Note(100, 37, 1.5, 1.7),
+         pm.Note(100, 38, 3.5, 4.1),
+         pm.Note(100, 39, 5.5, 6.0),
+         pm.Note(100, 40, 6.0, 7.0),
+         pm.Note(100, 41, 7.0, 8.0),
+         pm.Note(100, 36, 9.0, 10.5),
+         pm.Note(100, 37, 9.5, 10.0),
+         pm.Note(100, 37, 10.0, 10.5),
+         pm.Note(100, 37, 10.5, 11.0)]
+[pretty_midi.instruments[0].append(note) for note in notes]
+plotter.plot(pretty_midi)
+plotter.show(pretty_midi, "output.html")
+```
+
+![Example 01](docs/example-01.png)
 
 ## Contributing
 
@@ -47,6 +69,10 @@ python setup.py install_lib
 
 Use this [code style](config/visual-midi-code-style-intellij.xml).
 
-## [TODO](TODO.md)
+## TODO
 
-## [License](LICENSE)
+See [TODO](TODO.md).
+
+## License
+
+[MIT License](LICENSE).
