@@ -42,13 +42,15 @@ class Preset:
   }
 
   PRESET_4K = {
-    "title_text_font_size": "55px",
-    "label_text_font_size": "50px",
-    "axis_label_text_font_size": "45px",
+    "title_text_font_size": "65px",
+    "label_text_font_size": "60px",
+    "axis_label_text_font_size": "55px",
     "plot_width": 3840,
-    "row_height": 100,
+    "row_height": 125,
+    "axis_x_major_tick_out": 25,
     "axis_y_major_tick_out": 100,
-    "label_y_axis_offset_x": -80,
+    "label_y_axis_offset_x": -85,
+    "label_y_axis_offset_y": 0.075,
     "axis_x_label_standoff": 20,
     "axis_y_label_standoff": 20,
     "toolbar_location": None,
@@ -60,7 +62,10 @@ class Preset:
   }
 
   def __init__(self, config=None):
-    self.config = self.PRESETS[config] if config else self.PRESET_DEFAULT
+    if isinstance(config, dict):
+      self.config = config
+    else:
+      self.config = self.PRESETS[config] if config else self.PRESET_DEFAULT
 
   def __getitem__(self, item):
     return self.config.get(item, self.PRESET_DEFAULT.get(item))
@@ -313,7 +318,7 @@ class Plotter:
     plot.ygrid.grid_line_color = None
 
     # Configure the plot size and range
-    plot.title = Title(text="Visual MIDI (QPM: " + str(qpm) + ")",
+    plot.title = Title(text="Visual MIDI (QPM: " + str(int(qpm)) + ")",
                        text_font_size=self._preset["title_text_font_size"])
     plot.plot_width = self._preset["plot_width"]
     if self._preset.is_defined("plot_height"):
