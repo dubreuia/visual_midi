@@ -38,7 +38,19 @@ class Preset:
     "axis_y_label_standoff": 0,
     "label_text_font_size": "10px",
     "label_text_font_style": "normal",
-    "toolbar_location": "right"
+    "toolbar_location": "right",
+    "stop_live_reload_button": True,
+  }
+
+  PRESET_SMALL = {
+    "title_text_font_size": "0px",
+    "label_text_font_size": "8px",
+    "axis_label_text_font_size": "0px",
+    "label_y_axis_offset_y": 0,
+    "plot_width": 500,
+    "plot_height": 200,
+    "toolbar_location": None,
+    "stop_live_reload_button": False,
   }
 
   PRESET_4K = {
@@ -59,13 +71,15 @@ class Preset:
   PRESETS = {
     "PRESET_DEFAULT": PRESET_DEFAULT,
     "PRESET_4K": PRESET_4K,
+    "PRESET_SMALL": PRESET_SMALL,
   }
 
   def __init__(self, config=None):
+    self.config = {key: value for key, value in self.PRESET_DEFAULT.items()}
     if isinstance(config, dict):
-      self.config = config
-    else:
-      self.config = self.PRESETS[config] if config else self.PRESET_DEFAULT
+      self.config = {key: value for key, value in config.items()}
+    elif config:
+      self.config = {key: value for key, value in self.PRESETS[config].items()}
 
   def __getitem__(self, item):
     return self.config.get(item, self.PRESET_DEFAULT.get(item))
@@ -329,7 +343,7 @@ class Plotter:
     plot.y_range = Range1d(pitch_min, pitch_max + 1)
     plot.min_border_right = 50
 
-    if self._live_reload:
+    if self._live_reload and self._preset["stop_live_reload_button"]:
       callback = CustomJS(code="clearInterval(liveReloadInterval)")
       button = Button(label="stop live reload")
       button.js_on_click(callback)
@@ -343,8 +357,21 @@ class Plotter:
     """Saves the pretty midi object as a plot file (html)
     in the provided file."""
     plot = self.plot(pretty_midi)
-    output_file(plot_file)
-    save(plot)
+    # TODO refactor
+    if self._live_reload:
+      html = file_html(plot, CDN)
+      html = html.replace("</head>", """
+              <script type="text/javascript">
+                var liveReloadInterval = window.setInterval(function(){
+                  location.reload();
+                }, 2000);
+              </script>
+              </head>""")
+      with open(plot_file, 'w') as file:
+        file.write(html)
+    else:
+      output_file(plot_file)
+      save(plot)
     return plot
 
   def show(self, pretty_midi, plot_file):
@@ -352,6 +379,7 @@ class Plotter:
     the live reload option is activated, the opened page will periodically
     refresh."""
     plot = self.plot(pretty_midi)
+    # TODO refactor
     if self._live_reload:
       html = file_html(plot, CDN)
       html = html.replace("</head>", """
