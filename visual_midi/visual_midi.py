@@ -58,11 +58,11 @@ class Preset:
     "label_text_font_size": "50px",
     "axis_label_text_font_size": "55px",
     "plot_width": 3840,
-    "row_height": 70,
+    "row_height": 100,
     "axis_x_major_tick_out": 25,
     "axis_y_major_tick_out": 100,
     "label_y_axis_offset_x": -77,
-    "label_y_axis_offset_y": 0,
+    "label_y_axis_offset_y": 0.1,
     "axis_x_label_standoff": 20,
     "axis_y_label_standoff": 20,
     "toolbar_location": None,
@@ -100,17 +100,21 @@ class Plotter:
 
   def __init__(self,
                qpm: float = None,
-               plot_pitch_min: int = None,
-               plot_pitch_max: int = None,
-               plot_max_length_time: int = 16,
+               plot_pitch_range_start: int = None,
+               plot_pitch_range_stop: int = None,
+               plot_bar_range_start: int = None,
+               plot_bar_range_stop: int = None,
+               show_velocity: bool = None,
                midi_time_signature: str = None,
                live_reload: bool = False,
                preset: Preset = Preset()):
     """TODO doc"""
     self._qpm = qpm
-    self._plot_pitch_min = plot_pitch_min
-    self._plot_pitch_max = plot_pitch_max
-    self._plot_max_length_time = plot_max_length_time
+    self._plot_pitch_range_start = plot_pitch_range_start
+    self._plot_pitch_range_stop = plot_pitch_range_stop
+    self._plot_bar_range_start = plot_bar_range_start
+    self._plot_bar_range_stop = plot_bar_range_stop
+    self._show_velocity = show_velocity
     self._midi_time_signature = midi_time_signature
     self._live_reload = live_reload
     self._show_counter = 0
@@ -181,7 +185,10 @@ class Plotter:
         note_end = (note.start + (note.end - note.start)) / \
                    self._scale_time(qpm)
         data["top"].append(note.pitch)
-        data["bottom"].append(note.pitch + 1)
+        if self._show_velocity:
+          data["bottom"].append(note.pitch + (note.velocity / 127))
+        else:
+          data["bottom"].append(note.pitch + 1)
         data["left"].append(note_start)
         data["right"].append(note_end)
         data["duration"].append(note_end - note_start)
@@ -198,9 +205,16 @@ class Plotter:
       first_note_start = 0
       last_note_end = 0
 
-    # Stretch the plot to pitch min and pitch max if provided in constructor
-    pitch_min = min(self._plot_pitch_min or self._MAX_PITCH, pitch_min)
-    pitch_max = max(self._plot_pitch_max or self._MIN_PITCH, pitch_max)
+    # TODO doc
+    if self._plot_pitch_range_start is not None:
+      pitch_min = self._plot_pitch_range_start
+    else:
+      pitch_min = min(self._MAX_PITCH, pitch_min)
+    if self._plot_pitch_range_stop is not None:
+      pitch_max = self._plot_pitch_range_stop
+    else:
+      pitch_max = max(self._MIN_PITCH, pitch_max)
+
     pitch_range = pitch_max + 1 - pitch_min
 
     # Draws the rectangles on the splot from the data
@@ -214,6 +228,7 @@ class Plotter:
               color="color",
               source=source)
 
+    # TODO pitch range should be calculated after the plot range is calculated
     # Draws the y grid by hand, because the grid has label on the ticks, but
     # for a plot like this, the labels needs to fit in between the ticks.
     # Also useful to change the background of the grid each line
@@ -262,19 +277,30 @@ class Plotter:
     seconds_per_beat = seconds_per_quarter / (time_signature.denominator / 4)
     seconds_per_bar = seconds_per_beat * time_signature.numerator
 
-    # Calculates the plot start and end time, the start time can start after
-    # notes or truncate notes if the plot is too long (we left truncate the
-    # plot with the bounds)
-    # The plot start and plot end are a multiple of seconds per bar (closest
-    # smaller value for the start time, closest higher value for the end time)
-    plot_end_time = int((last_note_end) / seconds_per_bar) * seconds_per_bar
-    # If the last note end is exactly on a multiple of seconds per bar,
-    # we don't start a new one
-    if last_note_end % seconds_per_bar != 0:
-      plot_end_time += seconds_per_bar
-    plot_start_time = max(plot_end_time - self._plot_max_length_time,
-                          int(first_note_start / seconds_per_bar) *
-                          seconds_per_bar)
+    # Defines the end time of the plot in seconds
+    if self._plot_bar_range_stop is not None:
+      plot_end_time = self._plot_bar_range_stop * seconds_per_bar
+    else:
+      # Calculates the plot start and end time, the start time can start after
+      # notes or truncate notes if the plot is too long (we left truncate the
+      # plot with the bounds)
+      # The plot start and plot end are a multiple of seconds per bar (closest
+      # smaller value for the start time, closest higher value for the end time)
+      plot_end_time = int((last_note_end) / seconds_per_bar) * seconds_per_bar
+      # If the last note end is exactly on a multiple of seconds per bar,
+      # we don't start a new one
+      if last_note_end % seconds_per_bar != 0:
+        plot_end_time += seconds_per_bar
+
+    # Defines the start time of the plot in seconds
+    if self._plot_bar_range_start is not None:
+      plot_start_time = self._plot_bar_range_start * seconds_per_bar
+    else:
+      start_time = int(first_note_start / seconds_per_bar) * seconds_per_bar
+      # TODO extract
+      plot_max_length_bar = 8
+      plot_max_length_time = plot_max_length_bar * seconds_per_bar
+      plot_start_time = max(plot_end_time - plot_max_length_time, start_time)
 
     # Draws the vertical bar grid, with a different background color
     # for each bar
@@ -420,9 +446,11 @@ class Plotter:
 def console_entry_point():
   plot_conf_keys = [
     ("qpm", int),
-    ("plot_pitch_min", int),
-    ("plot_pitch_max", int),
-    ("plot_max_length_time", int),
+    ("plot_pitch_range_start", int),
+    ("plot_pitch_range_stop", int),
+    ("plot_bar_range_start", int),
+    ("plot_bar_range_stop", int),
+    ("show_velocity", bool),
     ("midi_time_signature", str),
     ("live_reload", bool),
   ]
