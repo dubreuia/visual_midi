@@ -13,7 +13,7 @@ from bokeh.models import Range1d, Label
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets.buttons import Button
 from bokeh.resources import CDN
-from pretty_midi import PrettyMIDI
+from pretty_midi import PrettyMIDI, TimeSignature
 
 
 def _frange(x, y, jump):
@@ -55,14 +55,14 @@ class Preset:
 
   PRESET_4K = {
     "title_text_font_size": "65px",
-    "label_text_font_size": "60px",
+    "label_text_font_size": "50px",
     "axis_label_text_font_size": "55px",
     "plot_width": 3840,
-    "row_height": 125,
+    "row_height": 70,
     "axis_x_major_tick_out": 25,
     "axis_y_major_tick_out": 100,
-    "label_y_axis_offset_x": -85,
-    "label_y_axis_offset_y": 0.075,
+    "label_y_axis_offset_x": -77,
+    "label_y_axis_offset_y": 0,
     "axis_x_label_standoff": 20,
     "axis_y_label_standoff": 20,
     "toolbar_location": None,
@@ -99,17 +99,19 @@ class Plotter:
   _MIN_PITCH = 0
 
   def __init__(self,
-               qpm=None,
-               plot_pitch_min=None,
-               plot_pitch_max=None,
-               plot_max_length_time=16,
-               live_reload=False,
-               preset=Preset()):
+               qpm: float = None,
+               plot_pitch_min: int = None,
+               plot_pitch_max: int = None,
+               plot_max_length_time: int = 16,
+               midi_time_signature: str = None,
+               live_reload: bool = False,
+               preset: Preset = Preset()):
     """TODO doc"""
     self._qpm = qpm
     self._plot_pitch_min = plot_pitch_min
     self._plot_pitch_max = plot_pitch_max
     self._plot_max_length_time = plot_max_length_time
+    self._midi_time_signature = midi_time_signature
     self._live_reload = live_reload
     self._show_counter = 0
     self._preset = preset
@@ -121,9 +123,8 @@ class Plotter:
       return self._qpm
     qpm = None
     for tempo_change in pretty_midi.get_tempo_changes():
-      if tempo_change.min() > 0 \
-        and tempo_change.max() > 0 \
-        and tempo_change.min() == tempo_change.max():
+      if (tempo_change.min() and tempo_change.max()
+        and tempo_change.min() == tempo_change.max()):
         if qpm:
           raise Exception("Multiple tempo changes are not supported "
                           + str(pretty_midi.get_tempo_changes()))
@@ -176,9 +177,9 @@ class Plotter:
         pitch_min = min(pitch_min or self._MAX_PITCH, note.pitch)
         pitch_max = max(pitch_max or self._MIN_PITCH, note.pitch)
         color_index = (note.pitch - 36) % len(colors)
-        note_start = note.start / self._scale_time(self._get_qpm(pretty_midi))
+        note_start = note.start / self._scale_time(qpm)
         note_end = (note.start + (note.end - note.start)) / \
-                   self._scale_time(self._get_qpm(pretty_midi))
+                   self._scale_time(qpm)
         data["top"].append(note.pitch)
         data["bottom"].append(note.pitch + 1)
         data["left"].append(note_start)
@@ -186,15 +187,12 @@ class Plotter:
         data["duration"].append(note_end - note_start)
         data["velocity"].append(note.velocity)
         data["color"].append(colors[color_index].lighten(0.1))
-        if not first_note_start:
-          first_note_start = note_start
-        last_note_end = note_end
+        first_note_start = min(first_note_start or sys.maxsize, note_start)
+        last_note_end = max(last_note_end or 0, note_end)
 
     # Shows an empty plot even if there are no notes
-    if not first_note_start \
-      or not last_note_end \
-      or not pitch_min \
-      or not pitch_max:
+    if (first_note_start is None or last_note_end is None
+      or pitch_min is None or pitch_max is None):
       pitch_min = self._MIN_PITCH
       pitch_max = pitch_min + 5
       first_note_start = 0
@@ -242,11 +240,27 @@ class Plotter:
         text_font_style=self._preset["label_text_font_style"])
       plot.add_layout(label)
 
+    # Gets the time signature from pretty midi, or 4/4 if none
+    # TODO explain
+    if self._midi_time_signature:
+      numerator, denominator = self._midi_time_signature.split("/")
+      time_signature = TimeSignature(int(numerator), int(denominator), 0)
+    else:
+      if pretty_midi.time_signature_changes:
+        if len(pretty_midi.time_signature_changes) > 1:
+          raise Exception("Multiple time signatures are not supported")
+        time_signature = pretty_midi.time_signature_changes[0]
+      else:
+        time_signature = TimeSignature(4, 4, 0)
+
     # Calculates the number of seconds per bar, this is only useful to draw the
     # back of the grid
+    # TODO explain + compare times with the code
     quarter_per_seconds = qpm / 60
-    seconds_per_quarter = 1 / quarter_per_seconds
-    seconds_per_bar = seconds_per_quarter * 4
+    seconds_per_quarter = 1 / (quarter_per_seconds *
+                               self._scale_time(qpm))
+    seconds_per_beat = seconds_per_quarter / (time_signature.denominator / 4)
+    seconds_per_bar = seconds_per_beat * time_signature.numerator
 
     # Calculates the plot start and end time, the start time can start after
     # notes or truncate notes if the plot is too long (we left truncate the
@@ -283,9 +297,9 @@ class Plotter:
     # Draws the vertical beat grid, those are only grid lines
     if self._preset["show_beat"]:
       for beat_time in _frange(plot_start_time, plot_end_time,
-                               seconds_per_quarter):
+                               seconds_per_beat):
         box = BoxAnnotation(left=beat_time,
-                            right=beat_time + seconds_per_quarter,
+                            right=beat_time + seconds_per_beat,
                             fill_color=None,
                             line_color="black",
                             line_width=1,
@@ -332,7 +346,9 @@ class Plotter:
     plot.ygrid.grid_line_color = None
 
     # Configure the plot size and range
-    plot.title = Title(text="Visual MIDI (QPM: " + str(int(qpm)) + ")",
+    plot_title_text = "Visual MIDI (%s QPM, %s/%s)" % (
+      str(int(qpm)), time_signature.numerator, time_signature.denominator)
+    plot.title = Title(text=plot_title_text,
                        text_font_size=self._preset["title_text_font_size"])
     plot.plot_width = self._preset["plot_width"]
     if self._preset.is_defined("plot_height"):
@@ -407,9 +423,11 @@ def console_entry_point():
     ("plot_pitch_min", int),
     ("plot_pitch_max", int),
     ("plot_max_length_time", int),
+    ("midi_time_signature", str),
     ("live_reload", bool),
   ]
 
+  # TODO add preset override
   parser = argparse.ArgumentParser()
   [parser.add_argument("--" + key[0], type=key[1]) for key in plot_conf_keys]
   parser.add_argument("--preset", type=str)
