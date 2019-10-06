@@ -1,6 +1,8 @@
 import argparse
+import ast
 import os
 import sys
+from typing import Optional, List, Tuple, Any
 
 import bokeh
 import bokeh.plotting
@@ -100,20 +102,26 @@ class Plotter:
 
   def __init__(self,
                qpm: float = None,
-               plot_pitch_range_start: int = None,
-               plot_pitch_range_stop: int = None,
-               plot_bar_range_start: int = None,
-               plot_bar_range_stop: int = None,
-               show_velocity: bool = None,
-               midi_time_signature: str = None,
+               plot_pitch_range_start: Optional[int] = None,
+               plot_pitch_range_stop: Optional[int] = None,
+               plot_bar_range_start: Optional[int] = None,
+               plot_bar_range_stop: Optional[int] = None,
+               plot_max_length_bar: int = 8,
+               bar_fill_alphas: Optional[List[float]] = None,
+               show_velocity: Optional[bool] = None,
+               midi_time_signature: Optional[str] = None,
                live_reload: bool = False,
                preset: Preset = Preset()):
     """TODO doc"""
+    if bar_fill_alphas is None:
+      bar_fill_alphas = [0.25, 0.05]
     self._qpm = qpm
     self._plot_pitch_range_start = plot_pitch_range_start
     self._plot_pitch_range_stop = plot_pitch_range_stop
     self._plot_bar_range_start = plot_bar_range_start
     self._plot_bar_range_stop = plot_bar_range_stop
+    self._plot_max_length_bar = plot_max_length_bar
+    self._bar_fill_alphas = bar_fill_alphas
     self._show_velocity = show_velocity
     self._midi_time_signature = midi_time_signature
     self._live_reload = live_reload
@@ -297,9 +305,7 @@ class Plotter:
       plot_start_time = self._plot_bar_range_start * seconds_per_bar
     else:
       start_time = int(first_note_start / seconds_per_bar) * seconds_per_bar
-      # TODO extract
-      plot_max_length_bar = 8
-      plot_max_length_time = plot_max_length_bar * seconds_per_bar
+      plot_max_length_time = self._plot_max_length_bar * seconds_per_bar
       plot_start_time = max(plot_end_time - plot_max_length_time, start_time)
 
     # Draws the vertical bar grid, with a different background color
@@ -308,7 +314,8 @@ class Plotter:
       bar_count = 0
       for bar_time in _frange(plot_start_time, plot_end_time,
                               seconds_per_bar):
-        fill_alpha = (0.25 if bar_count % 2 == 0 else 0.05)
+        fill_alpha = self._bar_fill_alphas[bar_count
+                                           % len(self._bar_fill_alphas)]
         box = BoxAnnotation(left=bar_time,
                             right=bar_time + seconds_per_bar,
                             fill_color="gray",
@@ -450,6 +457,8 @@ def console_entry_point():
     ("plot_pitch_range_stop", int),
     ("plot_bar_range_start", int),
     ("plot_bar_range_stop", int),
+    ("plot_max_length_bar", int),
+    ("bar_fill_alphas", str, ast.literal_eval),
     ("show_velocity", bool),
     ("midi_time_signature", str),
     ("live_reload", bool),
@@ -462,9 +471,16 @@ def console_entry_point():
   parser.add_argument("files", type=str, nargs='+')
   args = parser.parse_args()
 
+  def eval_value(value: Any, key: Tuple):
+    if not value:
+      return None
+    if len(key) == 3:
+      return key[2](value)
+    return value
+
   preset = Preset(config=(getattr(args, "preset", None)))
-  plot_conf_kwargs = {key[0]: (None if getattr(args, key[0]) == "None"
-                               else getattr(args, key[0]))
+  plot_conf_kwargs = {key[0]: eval_value(None if getattr(args, key[0]) == "None"
+                                         else getattr(args, key[0]), key)
                       for key in plot_conf_keys
                       if getattr(args, key[0], None)}
   plotter = Plotter(preset=preset, **plot_conf_kwargs)
