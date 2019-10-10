@@ -2,6 +2,7 @@ import argparse
 import ast
 import os
 import sys
+from enum import Enum
 from typing import Optional, List, Tuple, Any
 
 import bokeh
@@ -22,6 +23,18 @@ def _frange(x, y, jump):
   while x < y:
     yield x
     x += jump
+
+
+class Coloring(Enum):
+  PITCH = 0
+  INSTRUMENT = 1
+
+  @staticmethod
+  def from_name(name: str):
+    for color in Coloring:
+      if color.name == name:
+        return color
+    raise ValueError("Unknown color name: " + name)
 
 
 class Preset:
@@ -108,6 +121,7 @@ class Plotter:
                plot_bar_range_stop: Optional[int] = None,
                plot_max_length_bar: int = 8,
                bar_fill_alphas: Optional[List[float]] = None,
+               coloring: Coloring = Coloring.PITCH,
                show_velocity: Optional[bool] = None,
                midi_time_signature: Optional[str] = None,
                live_reload: bool = False,
@@ -122,6 +136,7 @@ class Plotter:
     self._plot_bar_range_stop = plot_bar_range_stop
     self._plot_max_length_bar = plot_max_length_bar
     self._bar_fill_alphas = bar_fill_alphas
+    self._coloring = coloring
     self._show_velocity = show_velocity
     self._midi_time_signature = midi_time_signature
     self._live_reload = live_reload
@@ -149,6 +164,17 @@ class Plotter:
   def _scale_time(self, qpm):
     return qpm / 120
 
+  def _get_color(self, index_instrument, note):
+    if self._coloring is Coloring.PITCH:
+      color_index = (note.pitch - 36) % len(colors)
+    elif self._coloring is Coloring.INSTRUMENT:
+      color_index = ((index_instrument + 1) * 5) % len(colors)
+    else:
+      raise Exception("Unknown coloring: " + str(self._coloring))
+    color = colors[color_index]
+    color = color.lighten(0.1)
+    return color
+
   def plot(self, pretty_midi):
     """Plots the pretty midi object as a plot object."""
 
@@ -162,21 +188,22 @@ class Plotter:
 
     # Setup the hover and the data dict for bokeh,
     # each property must match a property in the data dict
-    plot.select(dict(type=bokeh.models.HoverTool)).tooltips = (
-      {"pitch": "@top",
-       "velocity": "@velocity",
-       "duration": "@duration",
-       "start_time": "@left",
-       "end_time": "@right"})
+    plot.select(dict(type=bokeh.models.HoverTool)).tooltips = ({
+      "program": "@program",
+      "pitch": "@top",
+      "velocity": "@velocity",
+      "duration": "@duration",
+      "start_time": "@left",
+      "end_time": "@right"})
     data = dict(
+      program=[],
       top=[],
       bottom=[],
       left=[],
       right=[],
       duration=[],
       velocity=[],
-      color=[],
-    )
+      color=[])
 
     # Puts the notes in the dict for bokeh
     # and saves first and last note time, bigger and smaller pitch
@@ -184,14 +211,16 @@ class Plotter:
     pitch_max = None
     first_note_start = None
     last_note_end = None
+    index_instrument = 0
     for instrument in pretty_midi.instruments:
       for note in instrument.notes:
         pitch_min = min(pitch_min or self._MAX_PITCH, note.pitch)
         pitch_max = max(pitch_max or self._MIN_PITCH, note.pitch)
-        color_index = (note.pitch - 36) % len(colors)
+        color = self._get_color(index_instrument, note)
         note_start = note.start / self._scale_time(qpm)
         note_end = (note.start + (note.end - note.start)) / \
                    self._scale_time(qpm)
+        data["program"].append(instrument.program)
         data["top"].append(note.pitch)
         if self._show_velocity:
           data["bottom"].append(note.pitch + (note.velocity / 127))
@@ -201,9 +230,10 @@ class Plotter:
         data["right"].append(note_end)
         data["duration"].append(note_end - note_start)
         data["velocity"].append(note.velocity)
-        data["color"].append(colors[color_index].lighten(0.1))
+        data["color"].append(color)
         first_note_start = min(first_note_start or sys.maxsize, note_start)
         last_note_end = max(last_note_end or 0, note_end)
+      index_instrument = index_instrument + 1
 
     # Shows an empty plot even if there are no notes
     if (first_note_start is None or last_note_end is None
@@ -276,8 +306,8 @@ class Plotter:
       else:
         time_signature = TimeSignature(4, 4, 0)
 
-    # Calculates the number of seconds per bar, this is only useful to draw the
-    # back of the grid
+    # Calculates the number of seconds per bar, this is
+    # only useful to draw the back of the grid
     # TODO explain + compare times with the code
     quarter_per_seconds = qpm / 60
     seconds_per_quarter = 1 / (quarter_per_seconds *
@@ -459,6 +489,7 @@ def console_entry_point():
     ("plot_bar_range_stop", int),
     ("plot_max_length_bar", int),
     ("bar_fill_alphas", str, ast.literal_eval),
+    ("coloring", str, Coloring.from_name),
     ("show_velocity", str, ast.literal_eval),
     ("midi_time_signature", str),
     ("live_reload", str, ast.literal_eval),
