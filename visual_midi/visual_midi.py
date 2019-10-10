@@ -459,9 +459,9 @@ def console_entry_point():
     ("plot_bar_range_stop", int),
     ("plot_max_length_bar", int),
     ("bar_fill_alphas", str, ast.literal_eval),
-    ("show_velocity", bool),
+    ("show_velocity", str, ast.literal_eval),
     ("midi_time_signature", str),
-    ("live_reload", bool),
+    ("live_reload", str, ast.literal_eval),
   ]
 
   # TODO add preset override
@@ -475,7 +475,12 @@ def console_entry_point():
     if not value:
       return None
     if len(key) == 3:
-      return key[2](value)
+      try:
+        return key[2](value)
+      except ValueError:
+        raise Exception("Cannot transform key '" + str(key[0])
+                        + "' of type '" + str(key[1])
+                        + "' with value '" + str(value) + "'")
     return value
 
   preset = Preset(config=(getattr(args, "preset", None)))
