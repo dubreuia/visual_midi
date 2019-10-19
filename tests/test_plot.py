@@ -12,6 +12,13 @@ os.makedirs("output", exist_ok=True)
 
 class TestDefaultPlot(unittest.TestCase):
 
+  def test_plotter_preset(self):
+    plotter = Plotter(preset_name="PRESET_4K")
+    pretty_midi = pm.PrettyMIDI()
+    plotter.plot(pretty_midi)
+    plotter.save(pretty_midi, os.path.join("output",
+                                           "test_plotter_preset.html"))
+
   def test_empty_plot(self):
     plotter = Plotter()
     pretty_midi = pm.PrettyMIDI()

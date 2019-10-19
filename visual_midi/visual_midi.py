@@ -3,7 +3,7 @@ import ast
 import os
 import sys
 from enum import Enum
-from typing import Optional, List, Tuple, Any
+from typing import List, Tuple, Any
 
 import bokeh
 import bokeh.plotting
@@ -70,10 +70,10 @@ class Preset:
 
   PRESET_4K = {
     "title_text_font_size": "65px",
-    "label_text_font_size": "50px",
+    "label_text_font_size": "30px",
     "axis_label_text_font_size": "55px",
     "plot_width": 3840,
-    "row_height": 100,
+    "row_height": 50,
     "axis_x_major_tick_out": 25,
     "axis_y_major_tick_out": 100,
     "label_y_axis_offset_x": -77,
@@ -114,22 +114,27 @@ class Plotter:
   _MIN_PITCH = 0
 
   def __init__(self,
+               preset_name: str = "PRESET_DEFAULT",
                qpm: float = None,
-               plot_pitch_range_start: Optional[int] = None,
-               plot_pitch_range_stop: Optional[int] = None,
-               plot_bar_range_start: Optional[int] = None,
-               plot_bar_range_stop: Optional[int] = None,
+               plot_pitch_range_start: int = None,
+               plot_pitch_range_stop: int = None,
+               plot_bar_range_start: int = None,
+               plot_bar_range_stop: int = None,
                plot_max_length_bar: int = 8,
-               bar_fill_alphas: Optional[List[float]] = None,
+               bar_fill_alphas: List[float] = None,
                coloring: Coloring = Coloring.PITCH,
-               show_velocity: Optional[bool] = None,
-               midi_time_signature: Optional[str] = None,
-               live_reload: bool = False,
-               preset: Preset = Preset()):
+               show_velocity: bool = False,
+               midi_time_signature: str = None,
+               live_reload: bool = False):
     """TODO doc"""
-    if bar_fill_alphas is None:
+    try:
+      preset = Preset(Preset.PRESETS[preset_name])
+    except ValueError:
+      raise Exception(f"Unknown present {preset_name}")
+    if not bar_fill_alphas:
       bar_fill_alphas = [0.25, 0.05]
     self._qpm = qpm
+    self._preset = preset
     self._plot_pitch_range_start = plot_pitch_range_start
     self._plot_pitch_range_stop = plot_pitch_range_stop
     self._plot_bar_range_start = plot_bar_range_start
@@ -141,7 +146,6 @@ class Plotter:
     self._midi_time_signature = midi_time_signature
     self._live_reload = live_reload
     self._show_counter = 0
-    self._preset = preset
 
   def _get_qpm(self, pretty_midi):
     """Returns the first tempo change that is not zero, raises exception
@@ -498,7 +502,7 @@ def console_entry_point():
   # TODO add preset override
   parser = argparse.ArgumentParser()
   [parser.add_argument("--" + key[0], type=key[1]) for key in plot_conf_keys]
-  parser.add_argument("--preset", type=str)
+  parser.add_argument("--preset_name", type=str)
   parser.add_argument("files", type=str, nargs='+')
   args = parser.parse_args()
 
@@ -514,12 +518,11 @@ def console_entry_point():
                         + "' with value '" + str(value) + "'")
     return value
 
-  preset = Preset(config=(getattr(args, "preset", None)))
   plot_conf_kwargs = {key[0]: eval_value(None if getattr(args, key[0]) == "None"
                                          else getattr(args, key[0]), key)
                       for key in plot_conf_keys
                       if getattr(args, key[0], None)}
-  plotter = Plotter(preset=preset, **plot_conf_kwargs)
+  plotter = Plotter(preset_name=args.preset_name, **plot_conf_kwargs)
 
   for midi_file in args.files:
     plot_file = midi_file.replace(".mid", ".html")
