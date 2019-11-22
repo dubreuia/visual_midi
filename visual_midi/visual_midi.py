@@ -1,28 +1,31 @@
 import argparse
 import ast
+import math
 import os
 import sys
 from enum import Enum
-from typing import List, Tuple, Any
+from typing import Any
+from typing import List
+from typing import Tuple
 
 import bokeh
 import bokeh.plotting
 from bokeh.colors.groups import purple as colors
 from bokeh.embed import file_html
-from bokeh.io import output_file, show, save
+from bokeh.io import output_file
+from bokeh.io import save
+from bokeh.io import show
 from bokeh.layouts import column
-from bokeh.models import BoxAnnotation, ColumnDataSource, Title
-from bokeh.models import Range1d, Label
+from bokeh.models import BoxAnnotation
+from bokeh.models import ColumnDataSource
+from bokeh.models import Label
+from bokeh.models import Range1d
+from bokeh.models import Title
 from bokeh.models.callbacks import CustomJS
 from bokeh.models.widgets.buttons import Button
 from bokeh.resources import CDN
-from pretty_midi import PrettyMIDI, TimeSignature
-
-
-def _frange(x, y, jump):
-  while x < y:
-    yield x
-    x += jump
+from pretty_midi import PrettyMIDI
+from pretty_midi import TimeSignature
 
 
 class Coloring(Enum):
@@ -104,7 +107,8 @@ class Preset:
 
 
 class Plotter:
-  """A plotter class with plot size, time scaling and live reload
+  """
+  A plotter class with plot size, time scaling and live reload
   configuration.
 
   TODO args
@@ -148,8 +152,10 @@ class Plotter:
     self._show_counter = 0
 
   def _get_qpm(self, pretty_midi):
-    """Returns the first tempo change that is not zero, raises exception
-    if not found or multiple tempo present."""
+    """
+    Returns the first tempo change that is not zero, raises exception
+    if not found or multiple tempo present.
+    """
     if self._qpm:
       return self._qpm
     qpm = None
@@ -165,9 +171,6 @@ class Plotter:
                       + str(pretty_midi.get_tempo_changes()))
     return qpm
 
-  def _scale_time(self, qpm):
-    return qpm / 120
-
   def _get_color(self, index_instrument, note):
     if self._coloring is Coloring.PITCH:
       color_index = (note.pitch - 36) % len(colors)
@@ -179,11 +182,13 @@ class Plotter:
     color = color.lighten(0.1)
     return color
 
-  def plot(self, pretty_midi):
-    """Plots the pretty midi object as a plot object."""
+  def plot(self, pm):
+    """
+    Plots the pretty midi object as a plot object.
+    """
 
     # Calculates the QPM from the MIDI file, might raise exception if confused
-    qpm = self._get_qpm(pretty_midi)
+    qpm = self._get_qpm(pm)
 
     # Initialize the tools, those are present on the right hand side
     plot = bokeh.plotting.figure(
@@ -216,14 +221,13 @@ class Plotter:
     first_note_start = None
     last_note_end = None
     index_instrument = 0
-    for instrument in pretty_midi.instruments:
+    for instrument in pm.instruments:
       for note in instrument.notes:
         pitch_min = min(pitch_min or self._MAX_PITCH, note.pitch)
         pitch_max = max(pitch_max or self._MIN_PITCH, note.pitch)
         color = self._get_color(index_instrument, note)
-        note_start = note.start / self._scale_time(qpm)
-        note_end = (note.start + (note.end - note.start)) / \
-                   self._scale_time(qpm)
+        note_start = note.start
+        note_end = note.start + (note.end - note.start)
         data["program"].append(instrument.program)
         data["top"].append(note.pitch)
         if self._show_velocity:
@@ -303,21 +307,22 @@ class Plotter:
       numerator, denominator = self._midi_time_signature.split("/")
       time_signature = TimeSignature(int(numerator), int(denominator), 0)
     else:
-      if pretty_midi.time_signature_changes:
-        if len(pretty_midi.time_signature_changes) > 1:
+      if pm.time_signature_changes:
+        if len(pm.time_signature_changes) > 1:
           raise Exception("Multiple time signatures are not supported")
-        time_signature = pretty_midi.time_signature_changes[0]
+        time_signature = pm.time_signature_changes[0]
       else:
         time_signature = TimeSignature(4, 4, 0)
 
-    # Calculates the number of seconds per bar, this is
-    # only useful to draw the back of the grid
-    # TODO explain + compare times with the code
-    quarter_per_seconds = qpm / 60
-    seconds_per_quarter = 1 / (quarter_per_seconds *
-                               self._scale_time(qpm))
-    seconds_per_beat = seconds_per_quarter / (time_signature.denominator / 4)
-    seconds_per_bar = seconds_per_beat * time_signature.numerator
+    # Gets seconds per bar and seconds per beat
+    if len(pm.get_beats()) >= 2:
+      seconds_per_beat = pm.get_beats()[1] - pm.get_beats()[0]
+    else:
+      seconds_per_beat = 0.5
+    if len(pm.get_downbeats()) >= 2:
+      seconds_per_bar = pm.get_downbeats()[1] - pm.get_downbeats()[0]
+    else:
+      seconds_per_bar = 2.0
 
     # Defines the end time of the plot in seconds
     if self._plot_bar_range_stop is not None:
@@ -331,7 +336,9 @@ class Plotter:
       plot_end_time = int((last_note_end) / seconds_per_bar) * seconds_per_bar
       # If the last note end is exactly on a multiple of seconds per bar,
       # we don't start a new one
-      if last_note_end % seconds_per_bar != 0:
+      is_on_bar = math.isclose(last_note_end % seconds_per_bar, seconds_per_bar)
+      is_on_bar_exact = math.isclose(last_note_end % seconds_per_bar, 0.0)
+      if not is_on_bar and not is_on_bar_exact:
         plot_end_time += seconds_per_bar
 
     # Defines the start time of the plot in seconds
@@ -346,10 +353,9 @@ class Plotter:
     # for each bar
     if self._preset["show_bar"]:
       bar_count = 0
-      for bar_time in _frange(plot_start_time, plot_end_time,
-                              seconds_per_bar):
-        fill_alpha = self._bar_fill_alphas[bar_count
-                                           % len(self._bar_fill_alphas)]
+      for bar_time in pm.get_downbeats():
+        fill_alpha_index = bar_count % len(self._bar_fill_alphas)
+        fill_alpha = self._bar_fill_alphas[fill_alpha_index]
         box = BoxAnnotation(left=bar_time,
                             right=bar_time + seconds_per_bar,
                             fill_color="gray",
@@ -363,8 +369,7 @@ class Plotter:
 
     # Draws the vertical beat grid, those are only grid lines
     if self._preset["show_beat"]:
-      for beat_time in _frange(plot_start_time, plot_end_time,
-                               seconds_per_beat):
+      for beat_time in pm.get_beats():
         box = BoxAnnotation(left=beat_time,
                             right=beat_time + seconds_per_beat,
                             fill_color=None,
@@ -437,8 +442,10 @@ class Plotter:
     return layout
 
   def save(self, pretty_midi, plot_file):
-    """Saves the pretty midi object as a plot file (html)
-    in the provided file."""
+    """
+    Saves the pretty midi object as a plot file (html)
+    in the provided file.
+    """
     plot = self.plot(pretty_midi)
     # TODO refactor
     if self._live_reload:
@@ -458,9 +465,11 @@ class Plotter:
     return plot
 
   def show(self, pretty_midi, plot_file):
-    """Shows the pretty midi object as a plot file (html) in the browser. If
+    """
+    Shows the pretty midi object as a plot file (html) in the browser. If
     the live reload option is activated, the opened page will periodically
-    refresh."""
+    refresh.
+    """
     plot = self.plot(pretty_midi)
     # TODO refactor
     if self._live_reload:
