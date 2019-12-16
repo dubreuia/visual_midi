@@ -1,10 +1,11 @@
+"""
+Converts a pretty midi sequence to a boket plot
+"""
 import argparse
 import ast
 import math
 import os
 import sys
-from enum import Enum
-from typing import Any
 from typing import List
 from typing import Tuple
 
@@ -27,98 +28,21 @@ from bokeh.resources import CDN
 from pretty_midi import PrettyMIDI
 from pretty_midi import TimeSignature
 
-
-class Coloring(Enum):
-  PITCH = 0
-  INSTRUMENT = 1
-
-  @staticmethod
-  def from_name(name: str):
-    for color in Coloring:
-      if color.name == name:
-        return color
-    raise ValueError("Unknown color name: " + name)
-
-
-class Preset:
-  PRESET_DEFAULT = {
-    "plot_width": 1200,
-    "plot_height": 400,
-    "row_height": 25,
-    "show_bar": True,
-    "show_beat": True,
-    "title_text_font_size": "14px",
-    "axis_label_text_font_size": "12px",
-    "axis_x_major_tick_out": 5,
-    "axis_y_major_tick_out": 25,
-    "label_y_axis_offset_x": -18,
-    "label_y_axis_offset_y": 0.1,
-    "axis_y_label_standoff": 0,
-    "label_text_font_size": "10px",
-    "label_text_font_style": "normal",
-    "toolbar_location": "right",
-    "stop_live_reload_button": True,
-  }
-
-  PRESET_SMALL = {
-    "title_text_font_size": "0px",
-    "label_text_font_size": "8px",
-    "axis_label_text_font_size": "0px",
-    "label_y_axis_offset_y": 0,
-    "plot_width": 500,
-    "plot_height": 200,
-    "toolbar_location": None,
-    "stop_live_reload_button": False,
-  }
-
-  PRESET_4K = {
-    "title_text_font_size": "65px",
-    "label_text_font_size": "30px",
-    "axis_label_text_font_size": "55px",
-    "plot_width": 3840,
-    "row_height": 50,
-    "axis_x_major_tick_out": 25,
-    "axis_y_major_tick_out": 100,
-    "label_y_axis_offset_x": -77,
-    "label_y_axis_offset_y": 0.1,
-    "axis_x_label_standoff": 20,
-    "axis_y_label_standoff": 20,
-    "toolbar_location": None,
-  }
-
-  PRESETS = {
-    "PRESET_DEFAULT": PRESET_DEFAULT,
-    "PRESET_4K": PRESET_4K,
-    "PRESET_SMALL": PRESET_SMALL,
-  }
-
-  def __init__(self, config=None):
-    self.config = {key: value for key, value in self.PRESET_DEFAULT.items()}
-    if isinstance(config, dict):
-      self.config = {key: value for key, value in config.items()}
-    elif config:
-      self.config = {key: value for key, value in self.PRESETS[config].items()}
-
-  def __getitem__(self, item):
-    return self.config.get(item, self.PRESET_DEFAULT.get(item))
-
-  def is_defined(self, item):
-    return self.config.get(item, None)
+from presets import Coloring
+from presets import Preset
 
 
 class Plotter:
   """
-  A plotter class with plot size, time scaling and live reload
+  Plotter class with plot size, time scaling and live reload
   configuration.
-
-  TODO args
   """
 
   _MAX_PITCH = 127
   _MIN_PITCH = 0
 
   def __init__(self,
-               preset_name: str = "PRESET_DEFAULT",
+               preset: Preset = None,
                qpm: float = None,
                plot_pitch_range_start: int = None,
                plot_pitch_range_stop: int = None,
@@ -130,15 +54,12 @@ class Plotter:
                show_velocity: bool = False,
                midi_time_signature: str = None,
                live_reload: bool = False):
-    """TODO doc"""
-    try:
-      preset = Preset(Preset.PRESETS[preset_name])
-    except ValueError:
-      raise Exception(f"Unknown present {preset_name}")
+    if not preset:
+      preset = Preset()
     if not bar_fill_alphas:
       bar_fill_alphas = [0.25, 0.05]
-    self._qpm = qpm
     self._preset = preset
+    self._qpm = qpm
     self._plot_pitch_range_start = plot_pitch_range_start
     self._plot_pitch_range_stop = plot_pitch_range_stop
     self._plot_bar_range_start = plot_bar_range_start
@@ -151,7 +72,7 @@ class Plotter:
     self._live_reload = live_reload
     self._show_counter = 0
 
-  def _get_qpm(self, pretty_midi):
+  def _get_qpm(self, pm: PrettyMIDI):
     """
     Returns the first tempo change that is not zero, raises exception
     if not found or multiple tempo present.
@@ -159,19 +80,23 @@ class Plotter:
     if self._qpm:
       return self._qpm
     qpm = None
-    for tempo_change in pretty_midi.get_tempo_changes():
+    for tempo_change in pm.get_tempo_changes():
       if (tempo_change.min() and tempo_change.max()
         and tempo_change.min() == tempo_change.max()):
         if qpm:
           raise Exception("Multiple tempo changes are not supported "
-                          + str(pretty_midi.get_tempo_changes()))
+                          + str(pm.get_tempo_changes()))
         qpm = tempo_change.min()
     if not qpm:
       raise Exception("Unknown qpm in: "
-                      + str(pretty_midi.get_tempo_changes()))
+                      + str(pm.get_tempo_changes()))
     return qpm
 
   def _get_color(self, index_instrument, note):
+    """
+    Returns the color for the instrument and the note, depends
+    on self._coloring.
+    """
     if self._coloring is Coloring.PITCH:
       color_index = (note.pitch - 36) % len(colors)
     elif self._coloring is Coloring.INSTRUMENT:
@@ -182,10 +107,14 @@ class Plotter:
     color = color.lighten(0.1)
     return color
 
-  def plot(self, pm):
+  def plot(self, pm: PrettyMIDI):
     """
     Plots the pretty midi object as a plot object.
+
+      :param pm: the PrettyMIDI instance to plot
+      :return: the bokeh plot layout
     """
+    preset = self._preset
 
     # Calculates the QPM from the MIDI file, might raise exception if confused
     qpm = self._get_qpm(pm)
@@ -193,7 +122,7 @@ class Plotter:
     # Initialize the tools, those are present on the right hand side
     plot = bokeh.plotting.figure(
       tools="reset,hover,previewsave,wheel_zoom,pan",
-      toolbar_location=self._preset["toolbar_location"])
+      toolbar_location=preset.toolbar_location)
 
     # Setup the hover and the data dict for bokeh,
     # each property must match a property in the data dict
@@ -214,8 +143,8 @@ class Plotter:
       velocity=[],
       color=[])
 
-    # Puts the notes in the dict for bokeh
-    # and saves first and last note time, bigger and smaller pitch
+    # Puts the notes in the dict for bokeh and saves first
+    # and last note time, bigger and smaller pitch
     pitch_min = None
     pitch_max = None
     first_note_start = None
@@ -251,7 +180,8 @@ class Plotter:
       first_note_start = 0
       last_note_end = 0
 
-    # TODO doc
+    # Gets the pitch range (min, max) from either the provided arguments
+    # or min and max values from the notes
     if self._plot_pitch_range_start is not None:
       pitch_min = self._plot_pitch_range_start
     else:
@@ -263,7 +193,7 @@ class Plotter:
 
     pitch_range = pitch_max + 1 - pitch_min
 
-    # Draws the rectangles on the splot from the data
+    # Draws the rectangles on the plot from the data
     source = ColumnDataSource(data=data)
     plot.quad(left="left",
               right="right",
@@ -274,7 +204,6 @@ class Plotter:
               color="color",
               source=source)
 
-    # TODO pitch range should be calculated after the plot range is calculated
     # Draws the y grid by hand, because the grid has label on the ticks, but
     # for a plot like this, the labels needs to fit in between the ticks.
     # Also useful to change the background of the grid each line
@@ -292,17 +221,16 @@ class Plotter:
                           level="underlay")
       plot.add_layout(box)
       label = Label(
-        x=self._preset["label_y_axis_offset_x"],
-        y=pitch + self._preset["label_y_axis_offset_y"],
+        x=preset.label_y_axis_offset_x,
+        y=pitch + preset.label_y_axis_offset_y,
         x_units="screen",
         text=str(pitch),
         render_mode="css",
-        text_font_size=self._preset["label_text_font_size"],
-        text_font_style=self._preset["label_text_font_style"])
+        text_font_size=preset.label_text_font_size,
+        text_font_style=preset.label_text_font_style)
       plot.add_layout(label)
 
     # Gets the time signature from pretty midi, or 4/4 if none
-    # TODO explain
     if self._midi_time_signature:
       numerator, denominator = self._midi_time_signature.split("/")
       time_signature = TimeSignature(int(numerator), int(denominator), 0)
@@ -351,7 +279,7 @@ class Plotter:
 
     # Draws the vertical bar grid, with a different background color
     # for each bar
-    if self._preset["show_bar"]:
+    if preset.show_bar:
       bar_count = 0
       for bar_time in pm.get_downbeats():
         fill_alpha_index = bar_count % len(self._bar_fill_alphas)
@@ -368,7 +296,7 @@ class Plotter:
         bar_count += 1
 
     # Draws the vertical beat grid, those are only grid lines
-    if self._preset["show_beat"]:
+    if preset.show_beat:
       for beat_time in pm.get_beats():
         box = BoxAnnotation(left=beat_time,
                             right=beat_time + seconds_per_beat,
@@ -382,31 +310,26 @@ class Plotter:
     # Configure x axis
     plot.xaxis.bounds = (plot_start_time, plot_end_time)
     plot.xaxis.axis_label = "time (SEC)"
-    plot.xaxis.axis_label_text_font_size = self._preset[
-      "axis_label_text_font_size"]
+    plot.xaxis.axis_label_text_font_size = preset.axis_label_text_font_size
     plot.xaxis.ticker = bokeh.models.SingleIntervalTicker(interval=1)
     plot.xaxis.major_tick_line_alpha = 0.9
     plot.xaxis.major_tick_line_width = 1
-    plot.xaxis.major_tick_out = self._preset[
-      "axis_x_major_tick_out"]
+    plot.xaxis.major_tick_out = preset.axis_x_major_tick_out
     plot.xaxis.minor_tick_line_alpha = 0
-    plot.xaxis.major_label_text_font_size = self._preset[
-      "label_text_font_size"]
-    plot.xaxis.major_label_text_font_style = self._preset[
-      "label_text_font_style"]
+    plot.xaxis.major_label_text_font_size = preset.label_text_font_size
+    plot.xaxis.major_label_text_font_style = preset.label_text_font_style
 
     # Configure y axis
     plot.yaxis.bounds = (pitch_min, pitch_max + 1)
     plot.yaxis.axis_label = "pitch (MIDI)"
-    plot.yaxis.axis_label_text_font_size = self._preset[
-      "axis_label_text_font_size"]
+    plot.yaxis.axis_label_text_font_size = preset.axis_label_text_font_size
     plot.yaxis.ticker = bokeh.models.SingleIntervalTicker(interval=1)
     plot.yaxis.major_label_text_alpha = 0
     plot.yaxis.major_tick_line_alpha = 0.9
     plot.yaxis.major_tick_line_width = 1
-    plot.yaxis.major_tick_out = self._preset["axis_y_major_tick_out"]
+    plot.yaxis.major_tick_out = preset.axis_y_major_tick_out
     plot.yaxis.minor_tick_line_alpha = 0
-    plot.yaxis.axis_label_standoff = self._preset["axis_y_label_standoff"]
+    plot.yaxis.axis_label_standoff = preset.axis_y_label_standoff
     plot.outline_line_width = 1
     plot.outline_line_alpha = 1
     plot.outline_line_color = "black"
@@ -421,17 +344,17 @@ class Plotter:
     plot_title_text = "Visual MIDI (%s QPM, %s/%s)" % (
       str(int(qpm)), time_signature.numerator, time_signature.denominator)
     plot.title = Title(text=plot_title_text,
-                       text_font_size=self._preset["title_text_font_size"])
-    plot.plot_width = self._preset["plot_width"]
-    if self._preset.is_defined("plot_height"):
-      plot.plot_height = self._preset["plot_height"]
+                       text_font_size=preset.title_text_font_size)
+    plot.plot_width = preset.plot_width
+    if preset.row_height:
+      plot.plot_height = pitch_range * preset.row_height
     else:
-      plot.plot_height = pitch_range * self._preset["row_height"]
+      plot.plot_height = preset.plot_height
     plot.x_range = Range1d(plot_start_time, plot_end_time)
     plot.y_range = Range1d(pitch_min, pitch_max + 1)
     plot.min_border_right = 50
 
-    if self._live_reload and self._preset["stop_live_reload_button"]:
+    if self._live_reload and preset.stop_live_reload_button:
       callback = CustomJS(code="clearInterval(liveReloadInterval)")
       button = Button(label="stop live reload")
       button.js_on_click(callback)
@@ -441,13 +364,17 @@ class Plotter:
 
     return layout
 
-  def save(self, pretty_midi, plot_file):
+  def save(self, pm: PrettyMIDI, filepath: str):
     """
-    Saves the pretty midi object as a plot file (html)
-    in the provided file.
+    Saves the pretty midi object as a plot file (html) in the provided file. If
+    the live reload option is activated, the opened page will periodically
+    refresh.
+
+      :param pm: the PrettyMIDI instance to plot
+      :param filepath: the file path to save the resulting plot to
+      :return: the bokeh plot layout
     """
-    plot = self.plot(pretty_midi)
-    # TODO refactor
+    plot = self.plot(pm)
     if self._live_reload:
       html = file_html(plot, CDN)
       html = html.replace("</head>", """
@@ -457,21 +384,24 @@ class Plotter:
                 }, 2000);
               </script>
               </head>""")
-      with open(plot_file, 'w') as file:
+      with open(filepath, 'w') as file:
         file.write(html)
     else:
-      output_file(plot_file)
+      output_file(filepath)
       save(plot)
     return plot
 
-  def show(self, pretty_midi, plot_file):
+  def show(self, pm: PrettyMIDI, filepath: str):
     """
     Shows the pretty midi object as a plot file (html) in the browser. If
     the live reload option is activated, the opened page will periodically
     refresh.
+
+      :param pm: the PrettyMIDI instance to plot
+      :param filepath: the file path to save the resulting plot to
+      :return: the bokeh plot layout
     """
-    plot = self.plot(pretty_midi)
-    # TODO refactor
+    plot = self.plot(pm)
     if self._live_reload:
       html = file_html(plot, CDN)
       html = html.replace("</head>", """
@@ -481,20 +411,20 @@ class Plotter:
                 }, 2000);
               </script>
               </head>""")
-      with open(plot_file, 'w') as file:
+      with open(filepath, 'w') as file:
         file.write(html)
       if self._show_counter == 0:
         import webbrowser
-        webbrowser.open("file://" + os.path.realpath(plot_file), new=2)
+        webbrowser.open("file://" + os.path.realpath(filepath), new=2)
     else:
-      output_file(plot_file)
+      output_file(filepath)
       show(plot)
     self._show_counter += 1
     return plot
 
 
 def console_entry_point():
-  plot_conf_keys = [
+  flags_plot = [
     ("qpm", int),
     ("plot_pitch_range_start", int),
     ("plot_pitch_range_stop", int),
@@ -507,31 +437,52 @@ def console_entry_point():
     ("midi_time_signature", str),
     ("live_reload", str, ast.literal_eval),
   ]
-
-  # TODO add preset override
+  flags_preset = [
+    ("plot_width", int),
+    ("plot_height", int),
+    ("row_height", int),
+    ("show_bar", str, ast.literal_eval),
+    ("show_beat", str, ast.literal_eval),
+    ("title_text_font_size", str),
+    ("axis_label_text_font_size", str),
+    ("axis_x_major_tick_out", int),
+    ("axis_y_major_tick_out", int),
+    ("label_y_axis_offset_x", float),
+    ("label_y_axis_offset_y", float),
+    ("axis_y_label_standoff", int),
+    ("label_text_font_size", str),
+    ("label_text_font_style", str),
+    ("toolbar_location", str),
+    ("stop_live_reload_button", str, ast.literal_eval),
+  ]
   parser = argparse.ArgumentParser()
-  [parser.add_argument("--" + key[0], type=key[1]) for key in plot_conf_keys]
-  parser.add_argument("--preset_name", type=str)
+  [parser.add_argument("--" + flag[0], type=flag[1]) for flag in flags_plot]
+  [parser.add_argument("--" + flag[0], type=flag[1]) for flag in flags_preset]
   parser.add_argument("files", type=str, nargs='+')
   args = parser.parse_args()
 
-  def eval_value(value: Any, key: Tuple):
+  def _eval_parser_arg(flag: Tuple):
+    value = None if getattr(args, flag[0]) == "None" else getattr(args, flag[0])
     if not value:
       return None
-    if len(key) == 3:
+    if len(flag) == 3:
       try:
-        return key[2](value)
+        return flag[2](value)
       except ValueError:
-        raise Exception("Cannot transform key '" + str(key[0])
-                        + "' of type '" + str(key[1])
+        raise Exception("Cannot transform flag '" + str(flag[0])
+                        + "' of type '" + str(flag[1])
                         + "' with value '" + str(value) + "'")
     return value
 
-  plot_conf_kwargs = {key[0]: eval_value(None if getattr(args, key[0]) == "None"
-                                         else getattr(args, key[0]), key)
-                      for key in plot_conf_keys
-                      if getattr(args, key[0], None)}
-  plotter = Plotter(preset_name=args.preset_name, **plot_conf_kwargs)
+  kwargs_preset = {flag[0]: _eval_parser_arg(flag)
+                   for flag in flags_preset
+                   if getattr(args, flag[0], None)}
+  preset = Preset(**kwargs_preset)
+
+  kwargs_plotter = {flag[0]: _eval_parser_arg(flag)
+                    for flag in flags_plot
+                    if getattr(args, flag[0], None)}
+  plotter = Plotter(preset=preset, **kwargs_plotter)
 
   for midi_file in args.files:
     plot_file = midi_file.replace(".mid", ".html")

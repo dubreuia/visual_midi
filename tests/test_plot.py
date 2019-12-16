@@ -4,6 +4,9 @@ import unittest
 import pretty_midi as pm
 from pretty_midi import TimeSignature
 
+from presets import PRESET_4K
+from visual_midi import Preset
+
 from visual_midi import Coloring
 from visual_midi.visual_midi import Plotter
 
@@ -13,7 +16,7 @@ os.makedirs("output", exist_ok=True)
 class TestDefaultPlot(unittest.TestCase):
 
   def test_plotter_preset(self):
-    plotter = Plotter(preset_name="PRESET_4K")
+    plotter = Plotter(PRESET_4K)
     pretty_midi = pm.PrettyMIDI()
     plotter.plot(pretty_midi)
     output_file = os.path.join("output", "test_plotter_preset.html")
@@ -111,7 +114,6 @@ class TestDefaultPlot(unittest.TestCase):
     plotter.plot(pretty_midi)
     output_file = os.path.join("output", "test_time_signature_plot.html")
     plotter.save(pretty_midi, output_file)
-
 
   def test_instrument_color_plot(self):
     plotter = Plotter(coloring=Coloring.INSTRUMENT)
