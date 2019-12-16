@@ -16,7 +16,7 @@ def tests():
 
 setup(
   name="Visual MIDI",
-  version="0.0.1",
+  version="0.0.2",
   author="Alexandre DuBreuil",
   author_email="code@alexandredubreuil.com",
   description="Converts a pretty midi sequence to a boket plot",
