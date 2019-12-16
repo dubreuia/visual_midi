@@ -21,8 +21,6 @@ plotter = Plotter()
 plotter.show(pm, "docs/example-01.html")
 ```
 
-![Example 01](docs/example-01.png)
-
 ### Command line
 
 ```bash
@@ -93,27 +91,3 @@ optional arguments:
   --toolbar_location TOOLBAR_LOCATION
   --stop_live_reload_button STOP_LIVE_RELOAD_BUTTON
 ```
-
-## Contributing
-
-### Development
-
-```bash
-# Installs the library, dependencies, and command line scripts
-python setup.py install
-
-# Installs the python library (necessary for python imports)
-python setup.py install_lib
-```
-
-### Guidelines
-
-Use this [code style](config/visual-midi-code-style-intellij.xml).
-
-## TODO
-
-See [TODO](TODO.md).
-
-## License
-
-See [MIT License](LICENSE).
