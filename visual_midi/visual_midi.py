@@ -28,8 +28,8 @@ from bokeh.resources import CDN
 from pretty_midi import PrettyMIDI
 from pretty_midi import TimeSignature
 
-from presets import Coloring
-from presets import Preset
+from .presets import Coloring
+from .presets import Preset
 
 
 class Plotter:

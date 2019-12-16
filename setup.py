@@ -19,12 +19,13 @@ setup(
   version="0.0.1",
   author="Alexandre DuBreuil",
   author_email="code@alexandredubreuil.com",
-  description=("Converts a pretty midi sequence to a boket plot"),
+  description="Converts a pretty midi sequence to a boket plot",
   license="MIT License",
   keywords="midi, bokeh",
   url="http://packages.python.org/visual_midi",
   packages=["visual_midi", "tests"],
-  long_description=read("README.md"),
+  long_description=read("README_short.md"),
+  long_description_content_type="text/markdown",
   test_suite="setup.tests",
   entry_points={
     "console_scripts": [
