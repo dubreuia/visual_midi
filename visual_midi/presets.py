@@ -67,4 +67,5 @@ PRESET_4K = Preset(
   label_y_axis_offset_y=0.1,
   axis_y_label_standoff=20,
   label_text_font_size="40px",
+  toolbar_location=None,
 )
