@@ -5,8 +5,6 @@ import pretty_midi as pm
 from pretty_midi import TimeSignature
 
 from presets import PRESET_4K
-from visual_midi import Preset
-
 from visual_midi import Coloring
 from visual_midi.visual_midi import Plotter
 
