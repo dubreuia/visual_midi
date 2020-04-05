@@ -2,7 +2,7 @@
 .gitignore.swp
 
 # idea files
-.idea/
+.idea/*
 
 # python setuptools files
 build/
