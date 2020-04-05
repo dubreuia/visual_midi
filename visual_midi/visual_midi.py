@@ -121,7 +121,7 @@ class Plotter:
 
     # Initialize the tools, those are present on the right hand side
     plot = bokeh.plotting.figure(
-      tools="reset,hover,previewsave,wheel_zoom,pan",
+      tools="reset,hover,save,wheel_zoom,pan",
       toolbar_location=preset.toolbar_location)
 
     # Setup the hover and the data dict for bokeh,
