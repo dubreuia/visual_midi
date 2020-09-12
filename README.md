@@ -10,6 +10,14 @@ Converts a [pretty midi](https://craffel.github.io/pretty-midi/) sequence to a [
 pip install visual_midi
 ```
 
+## Compatibility
+
+Might work with older versions but wasn't tested:
+
+- Python 3 (>= 3.6)
+- pretty_midi >= 0.2.8
+- bokeh >= 2.0.2
+
 ## Usage
 
 ### Python
@@ -18,9 +26,15 @@ pip install visual_midi
 from visual_midi import Plotter
 from pretty_midi import PrettyMIDI
 
-pm = PrettyMIDI("docs/example-01.mid")
 plotter = Plotter()
-plotter.show(pm, "docs/example-01.html")
+
+# Loading a file on disk using PrettyMidi
+pm = PrettyMIDI("docs/example-01.mid")
+plotter.show(pm, "/tmp/example-01.html")
+
+# Converting to PrettyMidi from another library, like Magenta note-seq
+pm = mm.midi_io.note_sequence_to_pretty_midi(sequence)
+plotter.show(pm, "/tmp/example-02.html")
 ```
 
 ![Example 01](docs/example-01.png)
@@ -99,6 +113,14 @@ optional arguments:
 ## Contributing
 
 ### Development
+
+Installing dependencies with:
+
+```bash
+pip install -r requirements.txt
+```
+
+Then modify the code and install Visual MIDI:
 
 ```bash
 # Installs the library, dependencies, and command line scripts

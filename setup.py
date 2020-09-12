@@ -38,7 +38,7 @@ setup(
     "License :: OSI Approved :: MIT License",
   ],
   install_requires=[
-    "pretty_midi>=0.2.8",
-    "bokeh>=1.3.0",
+    "pretty_midi >= 0.2.8",
+    "bokeh >= 2.0.2",
   ]
 )
