@@ -20,24 +20,64 @@ Might work with older versions but wasn't tested:
 
 ## Usage
 
+Use the `Preset` object to customize the appearance (height, width, colors, etc.) of the plot, and the `Plotter` object to change the render view (number of bars to show, pitch range, etc.). The resulting plot still has all its bars (in this example, 16 bars), but the plot is "zoomed in" to the desired number of bars (int this example, 8 bas). You can still drag and zoom the plot.
+
+- `Plotter#save` - Saves the pretty midi object as a plot file (html) in the provided file
+- `Plotter#show` - Shows the pretty midi object as a plot file (html) in the browser
+- `Plotter#show_notebook` - Shows the pretty midi object as a plot file in the notebook
+
 ### Python
+
+Can show a plot from a MIDI file on disk, or from any PrettyMIDI object, including coming from libraries such as Magenta (like [Magenta note-seq](https://github.com/magenta/note-seq)).
 
 ```python
 from visual_midi import Plotter
+from visual_midi import Preset
 from pretty_midi import PrettyMIDI
 
-plotter = Plotter()
-
-# Loading a file on disk using PrettyMidi
+# Loading a file on disk using PrettyMidi, and show
 pm = PrettyMIDI("docs/example-01.mid")
+plotter = Plotter()
 plotter.show(pm, "/tmp/example-01.html")
 
 # Converting to PrettyMidi from another library, like Magenta note-seq
+import magenta.music as mm
 pm = mm.midi_io.note_sequence_to_pretty_midi(sequence)
+plotter = Plotter()
 plotter.show(pm, "/tmp/example-02.html")
 ```
 
 ![Example 01](docs/example-01.png)
+
+
+```python
+from visual_midi import Plotter
+from visual_midi import Preset
+from pretty_midi import PrettyMIDI
+
+# Using the `Preset` and `Plotter` to customize appearance (smaller plot)
+pm = PrettyMIDI("docs/example-01.mid")
+preset = Preset(plot_width=850)
+plotter = Plotter(preset, plot_max_length_bar=4)
+plotter.show(pm, "/tmp/example-01.html")
+```
+
+### Notebooks
+
+See [example Jupyter notebook](./docs/example-01.ipynb):
+
+```python
+from visual_midi import Plotter
+from visual_midi import Preset
+from pretty_midi import PrettyMIDI
+
+preset = Preset(plot_width=850)
+plotter = Plotter(preset, plot_max_length_bar=4)
+pm = PrettyMIDI("docs/example-01.mid")
+plotter.show_notebook(pm)
+```
+
+![Example 01 - Notebook](docs/example-01-notebook.png)
 
 ### Command line
 

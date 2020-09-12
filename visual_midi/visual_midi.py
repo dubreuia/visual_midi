@@ -13,7 +13,7 @@ import bokeh
 import bokeh.plotting
 from bokeh.colors.groups import purple as colors
 from bokeh.embed import file_html
-from bokeh.io import output_file
+from bokeh.io import output_file, output_notebook
 from bokeh.io import save
 from bokeh.io import show
 from bokeh.layouts import column
@@ -81,8 +81,7 @@ class Plotter:
             return self._qpm
         qpm = None
         for tempo_change in pm.get_tempo_changes():
-            if (tempo_change.min() and tempo_change.max()
-                and tempo_change.min() == tempo_change.max()):
+            if tempo_change.min() and tempo_change.max() and tempo_change.min() == tempo_change.max():
                 if qpm:
                     raise Exception("Multiple tempo changes are not supported "
                                     + str(pm.get_tempo_changes()))
@@ -173,8 +172,7 @@ class Plotter:
             index_instrument = index_instrument + 1
 
         # Shows an empty plot even if there are no notes
-        if (first_note_start is None or last_note_end is None
-            or pitch_min is None or pitch_max is None):
+        if first_note_start is None or last_note_end is None or pitch_min is None or pitch_max is None:
             pitch_min = self._MIN_PITCH
             pitch_max = pitch_min + 5
             first_note_start = 0
@@ -420,6 +418,18 @@ class Plotter:
             output_file(filepath)
             show(plot)
         self._show_counter += 1
+        return plot
+
+    def show_notebook(self, pm: PrettyMIDI):
+        """
+        Shows the pretty midi object as a plot file in the notebook.
+
+          :param pm: the PrettyMIDI instance to plot
+          :return: the bokeh plot layout
+        """
+        plot = self.plot(pm)
+        output_notebook()
+        show(plot)
         return plot
 
 
