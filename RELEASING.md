@@ -13,4 +13,10 @@
     ```bash
     twine upload dist/*
     ```
-4. Create the release in [Github Issues](https://github.com/dubreuia/visual_midi/releases)
+3. Tag in git
+    ```bash
+    git tag <version>
+    git push origin <version>
+    ```
+5. Create the release in [Github Issues](https://github.com/dubreuia/visual_midi/releases)
+
