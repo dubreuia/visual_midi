@@ -1,6 +1,6 @@
 # Visual MIDI
 
-[![PyPI package](./docs/badge-pypi-website.svg)](https://pypi.org/project/Visual-MIDI/1.0.0/)
+[![PyPI package](./docs/badge-pypi-website.svg)](https://pypi.org/project/Visual-MIDI/1.1.0/)
 
 Converts a [pretty midi](https://craffel.github.io/pretty-midi/) sequence to a [bokeh plot](https://bokeh.pydata.org/en/latest/). See [https://pypi.org/project/Visual-MIDI/](https://pypi.org/project/Visual-MIDI/).
 

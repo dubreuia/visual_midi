@@ -1,6 +1,7 @@
 # Releasing
 
 1. Update the versions in:
+    - [README.md](README.md)
     - [setup.py](setup.py)
     - [badge-pypi-website.svg](docs/badge-pypi-website.svg)
 2. Build the plugin:
@@ -13,4 +14,10 @@
     ```bash
     twine upload dist/*
     ```
-4. Create the release in [Github Issues](https://github.com/dubreuia/visual_midi/releases)
+3. Tag in git
+    ```bash
+    git tag <version>
+    git push origin <version>
+    ```
+5. Create the release in [Github Issues](https://github.com/dubreuia/visual_midi/releases)
+
