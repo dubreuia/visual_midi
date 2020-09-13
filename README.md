@@ -4,6 +4,10 @@
 
 Converts a [pretty midi](https://craffel.github.io/pretty-midi/) sequence to a [bokeh plot](https://bokeh.pydata.org/en/latest/). See [https://pypi.org/project/Visual-MIDI/](https://pypi.org/project/Visual-MIDI/).
 
+<p align="center">
+  <img width="512px" src="./docs/logo-dark.png" alt="Visual MIDI Logo Dark"/>
+</p>
+
 ## Installation
 
 ```bash
