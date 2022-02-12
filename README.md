@@ -101,6 +101,7 @@ usage: visual_midi [-h] [--qpm QPM]
                    [--plot_bar_range_start PLOT_BAR_RANGE_START]
                    [--plot_bar_range_stop PLOT_BAR_RANGE_STOP]
                    [--plot_max_length_bar PLOT_MAX_LENGTH_BAR]
+                   [--plot_title PLOT_TITLE]
                    [--bar_fill_alphas BAR_FILL_ALPHAS] [--coloring COLORING]
                    [--show_velocity SHOW_VELOCITY]
                    [--midi_time_signature MIDI_TIME_SIGNATURE]
@@ -131,6 +132,7 @@ optional arguments:
   --plot_bar_range_start PLOT_BAR_RANGE_START
   --plot_bar_range_stop PLOT_BAR_RANGE_STOP
   --plot_max_length_bar PLOT_MAX_LENGTH_BAR
+  --plot_title PLOT_TITLE
   --bar_fill_alphas BAR_FILL_ALPHAS
   --coloring COLORING
   --show_velocity SHOW_VELOCITY
