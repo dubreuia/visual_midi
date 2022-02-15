@@ -49,6 +49,7 @@ class Plotter:
                  plot_bar_range_start: int = None,
                  plot_bar_range_stop: int = None,
                  plot_max_length_bar: int = 8,
+                 plot_title: str = None,
                  bar_fill_alphas: List[float] = None,
                  coloring: Coloring = Coloring.PITCH,
                  show_velocity: bool = False,
@@ -65,6 +66,7 @@ class Plotter:
         self._plot_bar_range_start = plot_bar_range_start
         self._plot_bar_range_stop = plot_bar_range_stop
         self._plot_max_length_bar = plot_max_length_bar
+        self._plot_title = plot_title
         self._bar_fill_alphas = bar_fill_alphas
         self._coloring = coloring
         self._show_velocity = show_velocity
@@ -339,8 +341,12 @@ class Plotter:
         plot.ygrid.grid_line_color = None
 
         # Configure the plot size and range
-        plot_title_text = "Visual MIDI (%s QPM, %s/%s)" % (
-            str(int(qpm)), time_signature.numerator, time_signature.denominator)
+        if self._plot_title is None:
+            plot_title_text = "Visual MIDI (%s QPM, %s/%s)" % (
+                str(int(qpm)), time_signature.numerator, time_signature.denominator)
+        else:
+            plot_title_text = self._plot_title
+        
         plot.title = Title(text=plot_title_text,
                            text_font_size=preset.title_text_font_size)
         plot.plot_width = preset.plot_width
@@ -441,6 +447,7 @@ def console_entry_point():
         ("plot_bar_range_start", int),
         ("plot_bar_range_stop", int),
         ("plot_max_length_bar", int),
+        ("plot_title", str),
         ("bar_fill_alphas", str, ast.literal_eval),
         ("coloring", str, Coloring.from_name),
         ("show_velocity", str, ast.literal_eval),
