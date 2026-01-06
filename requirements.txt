@@ -1,2 +1,2 @@
-bokeh==2.0.2
+bokeh==3.8.2
 pretty-midi==0.2.8
